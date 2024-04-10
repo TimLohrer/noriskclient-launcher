@@ -820,8 +820,8 @@ async fn login_norisk_microsoft(options: LauncherOptions) -> Result<LoginData, S
 }
 
 #[tauri::command]
-async fn remove_account(login_data: LoginData) -> Result<(), String> {
-    TokenManager{}.delete_tokens(login_data);
+async fn remove_account(uuid: &str) -> Result<(), String> {
+    TokenManager{}.delete_tokens(uuid);
     Ok(())
 }
 
@@ -1007,7 +1007,7 @@ async fn default_data_folder_path() -> Result<String, String> {
 
 #[tauri::command]
 async fn clear_data(options: LauncherOptions) -> Result<(), String> {
-    let _ = options.accounts.iter().map(|account| TokenManager{}.delete_tokens(account.clone()));
+    let _ = options.accounts.iter().map(|account| TokenManager{}.delete_tokens(&account.uuid));
 
     let _ = store_options(LauncherOptions::default()).await;
 

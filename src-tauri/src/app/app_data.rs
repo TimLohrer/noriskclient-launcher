@@ -174,12 +174,22 @@ impl TokenManager {
     pub fn load_tokens(&self, login_data: LoginDataMinimal) -> LoginData {
         // logic for loading tokens
         let uuid = login_data.uuid.clone();
-        let mc_token = Self::get_keyring_entry(&uuid, "mcToken").get_password().unwrap_or(String::new());
-        let access_token = Self::get_keyring_entry(&uuid, "accessToken").get_password().unwrap_or(String::new());
-        let refresh_token = Self::get_keyring_entry(&uuid, "refreshToken").get_password().unwrap_or(String::new());
-        let norisk_token = Self::get_keyring_entry(&uuid, "noriskToken").get_password().unwrap_or(String::new());
-        let experimental_token = Self::get_keyring_entry(&uuid, "experimentalToken").get_password().unwrap_or(String::new());
 
+        // Structure: "mcToken=accessToken=refreshToken=noriskToken=experimentalToken"
+        let tokens = Self::get_keyring_entry(&uuid, "tokens").get_password().unwrap_or(String::new());
+        let mut tokens: Vec<&str> = tokens.split("=").collect();
+        if tokens.len() < 4 {
+            Self::delete_tokens(&self, &login_data.uuid)
+        } else if tokens.len() == 4 {
+            tokens.push("")
+        }
+        println!("Tokens: {:?}", tokens);
+        let mc_token = tokens[0].to_string();
+        let access_token = tokens[1].to_string();
+        let refresh_token = tokens[2].to_string();
+        let norisk_token = tokens[3].to_string();
+        let experimental_token = tokens[4].to_string();
+        
         return LoginData {
             uuid: login_data.uuid,
             username: login_data.username,
@@ -191,14 +201,14 @@ impl TokenManager {
         };
     }
 
-    pub fn store_tokens(&mut self, login_data: LoginData) -> LoginDataMinimal {
+    pub fn store_tokens(&self, login_data: LoginData) -> LoginDataMinimal {
         // logic for storing tokens
         let uuid = login_data.uuid.clone();
-        let _mc_token = Self::get_keyring_entry(&uuid, "mcToken").set_password(&login_data.mc_token).unwrap();
-        let _access_token = Self::get_keyring_entry(&uuid, "accessToken").set_password(&login_data.access_token).unwrap();
-        let _refresh_token = Self::get_keyring_entry(&uuid, "refreshToken").set_password(&login_data.refresh_token).unwrap();
-        let _norisk_token = Self::get_keyring_entry(&uuid, "noriskToken").set_password(&login_data.norisk_token).unwrap();
-        let _experimental_token = Self::get_keyring_entry(&uuid, "experimentalToken").set_password(&login_data.experimental_token.unwrap()).unwrap();
+
+        // Structure: "mcToken=accessToken=refreshToken=noriskToken=experimentalToken"
+        let tokens = format!("{}={}={}={}={}", login_data.mc_token, login_data.access_token, login_data.refresh_token, login_data.norisk_token, login_data.experimental_token.unwrap());
+        println!("Tokens: {}", tokens);
+        let _ = Self::get_keyring_entry(&uuid, "tokens").set_password(&tokens).unwrap();
 
         return LoginDataMinimal {
             uuid: login_data.uuid,
@@ -206,14 +216,9 @@ impl TokenManager {
         };
     }
 
-    pub fn delete_tokens(&mut self, login_data: LoginData) {
+    pub fn delete_tokens(&self, uuid: &str) {
         // logic for deleting tokens
-        let uuid = login_data.uuid.clone();
-        let _ = Self::get_keyring_entry(&uuid, "mcToken").delete_password();
-        let _ = Self::get_keyring_entry(&uuid, "accessToken").delete_password();
-        let _ = Self::get_keyring_entry(&uuid, "refreshToken").delete_password();
-        let _ = Self::get_keyring_entry(&uuid, "noriskToken").delete_password();
-        let _ = Self::get_keyring_entry(&uuid, "experimentalToken").delete_password();
+        let _ = Self::get_keyring_entry(&uuid, "tokens").delete_password();
     }
 }
 
