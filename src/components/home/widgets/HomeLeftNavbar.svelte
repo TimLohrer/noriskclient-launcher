@@ -6,7 +6,7 @@
   import { get } from "svelte/store";
   import { branches } from "../../../stores/branchesStore.js";
   import { launcherOptions } from "../../../stores/optionsStore.js";
-  import { invoke } from "@tauri-apps/api";
+  import { invoke } from "@tauri-apps/api/core";
     import {isApiOnline, noriskLog} from "../../../utils/noriskUtils.js";
   import { addNotification } from "../../../stores/notificationStore.js";
 

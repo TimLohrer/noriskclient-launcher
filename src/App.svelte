@@ -18,8 +18,8 @@
         noriskLog,
     } from "./utils/noriskUtils.js";
     import {getAnnouncements, getChangeLogs, getLastViewedPopups} from "./utils/popupUtils.js";
-    import {appWindow} from "@tauri-apps/api/window";
-    import {invoke} from "@tauri-apps/api";
+    import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+    import { invoke } from "@tauri-apps/api/core";
     import {addNotification} from "./stores/notificationStore.js";
     import {language, setLanguage, translations} from "./utils/translationUtils.js";
 
@@ -28,7 +28,7 @@
 
     onMount(async () => {
         setTimeout(async () => {
-            await appWindow.show();
+            await WebviewWindow.show();
         }, 300);
         await getVersion();
         await fetchOptions();

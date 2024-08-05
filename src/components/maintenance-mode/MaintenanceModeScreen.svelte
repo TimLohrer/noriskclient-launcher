@@ -1,5 +1,5 @@
 <script>
-    import { appWindow } from "@tauri-apps/api/window";
+    import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
     import { openInputPopup } from "../../utils/popupUtils.js";
     import { setMaintenanceMode } from "../../utils/noriskUtils.js";
     import { translations } from './../../utils/translationUtils.js';
@@ -28,7 +28,7 @@
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <p class="discord" on:click={() => window.open("https://discord.norisk.gg", "_blanc")}>-&gt; Discord</p>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <h1 class="quit-button red-text" on:click={() => { appWindow.close(); }}>{lang.maintenanceMode.button.exit}</h1>
+        <h1 class="quit-button red-text" on:click={() => { WebviewWindow.close(); }}>{lang.maintenanceMode.button.exit}</h1>
     </div>
 </div>
 
