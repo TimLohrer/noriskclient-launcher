@@ -1805,7 +1805,7 @@ async fn run_custom_server(
 }
 
 #[tauri::command]
-async fn check_if_custom_server_running(window: Window) -> Result<(bool, String), String> {
+async fn check_if_custom_server_running(window: WebviewWindow) -> Result<(bool, String), String> {
     let window_mutex = Arc::new(std::sync::Mutex::new(window));
 
     let latest_running_server = CustomServerManager::load_latest_running_server()
@@ -1854,7 +1854,7 @@ async fn check_if_custom_server_running(window: Window) -> Result<(bool, String)
 #[tauri::command]
 pub async fn terminate_custom_server(
     launcher_was_closed: bool,
-    window: Window,
+    window: WebviewWindow,
 ) -> Result<(), String> {
     let latest_running_server = CustomServerManager::load_latest_running_server()
         .await
@@ -1917,7 +1917,7 @@ async fn execute_rcon_command(
     timestamp: String,
     log_type: String,
     command: String,
-    window: Window,
+    window: WebviewWindow,
 ) -> Result<String, String> {
     let mut client = Client::new("127.0.0.1:25594".to_string()).unwrap();
     client.authenticate("minecraft".to_string()).unwrap();
