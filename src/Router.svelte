@@ -6,7 +6,7 @@
   import { setStillRunningCustomServer } from "./stores/customServerLogsStore.js";
   import Router, { location, push } from "svelte-spa-router";
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/tauri";
+  import { invoke } from "@tauri-apps/api/core";
   import { setLanguage, language, translations } from "./utils/translationUtils.js";
   import { isInMaintenanceMode, noriskError, noriskUser, isApiOnline, isWinterSeason } from "./utils/noriskUtils.js";
   import { addNotification } from "./stores/notificationStore.js";

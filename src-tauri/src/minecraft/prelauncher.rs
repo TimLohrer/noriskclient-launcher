@@ -18,7 +18,7 @@ use crate::utils::{download_file, get_maven_artifact_path};
 ///
 /// Prelaunching client
 ///
-pub(crate) async fn launch<D: Send + Sync>(multiple_instances: bool, norisk_token: &str, uuid: &str, launch_manifest: NoRiskLaunchManifest, launching_parameter: LaunchingParameter, additional_mods: Vec<LoaderMod>, progress: LauncherData<D>, window: Arc<Mutex<tauri::Window>>, instance_id: Uuid) -> Result<()> {
+pub(crate) async fn launch<D: Send + Sync>(multiple_instances: bool, norisk_token: &str, uuid: &str, launch_manifest: NoRiskLaunchManifest, launching_parameter: LaunchingParameter, additional_mods: Vec<LoaderMod>, progress: LauncherData<D>, window: Arc<Mutex<tauri::WebviewWindow>>, instance_id: Uuid) -> Result<()> {
     info!("Loading minecraft version manifest...");
     let data_path = LAUNCHER_DIRECTORY.data_dir().join("gameDir").join(&launch_manifest.build.branch).join("nrc_cache");
     let mc_version_manifest = VersionManifest::download(&data_path).await?;

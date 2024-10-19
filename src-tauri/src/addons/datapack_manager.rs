@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use log::{debug, error, info};
-use tauri::Window;
+use tauri::{WebviewWindow, Emitter};
 use tokio::fs;
 
 use crate::{addons::progress::AddonsProgress, app::{api::ApiEndpoints, app_data::LauncherOptions, gui::FileData, modrinth_api::{Datapack, DatapackInfo, ModrinthApiEndpoints}}, error::{Error, ErrorKind}, utils::download_file};
@@ -72,7 +72,7 @@ impl DataPackManager {
             .join("datapacks")
     }
 
-    pub async fn download_datapack(options: LauncherOptions, branch: &str, world: &str, datapack: &Datapack, window: Window) -> Result<(), Error> {
+    pub async fn download_datapack(options: LauncherOptions, branch: &str, world: &str, datapack: &Datapack, window: WebviewWindow) -> Result<(), Error> {
         let datapack_path = Self::get_datapack_folder(options, branch, world).join(&datapack.file_name);
     
         // Do we need to download the DataPack?

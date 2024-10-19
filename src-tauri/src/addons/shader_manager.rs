@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use anyhow::Result;
 use log::{error, info};
-use tauri::Window;
+use tauri::{WebviewWindow, Emitter};
 use tokio::fs;
 
 use crate::{addons::progress::AddonsProgress, app::{api::ApiEndpoints, app_data::LauncherOptions, gui::FileData, modrinth_api::{ModrinthApiEndpoints, Shader, ShaderInfo}}, error::{Error, ErrorKind}, utils::download_file};
@@ -85,7 +85,7 @@ impl ShaderManager {
         Ok(files)
     }
 
-    pub async fn download_shader(options: LauncherOptions, branch: &str, shader: &Shader, window: Window) -> Result<(), Error> {
+    pub async fn download_shader(options: LauncherOptions, branch: &str, shader: &Shader, window: WebviewWindow) -> Result<(), Error> {
         let shader_path = Self::get_shaders_folder(options, branch).join(&shader.file_name);
     
         // Do we need to download the shader?
