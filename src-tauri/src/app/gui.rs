@@ -21,7 +21,7 @@ use regex::Regex;
 use reqwest::multipart::{Form, Part};
 use serde::{Deserialize, Serialize};
 use sysinfo::{Pid, ProcessExt, System, SystemExt};
-use tauri::{Manager, UserAttentionType, WebviewWindow, WindowEvent, AppHandle};
+use tauri::{Manager, UserAttentionType, WebviewWindow, WindowEvent};
 use tauri::Emitter;
 use tauri_plugin_dialog::DialogExt;
 use tokio::{fs, io::AsyncReadExt};
