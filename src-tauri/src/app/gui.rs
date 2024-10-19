@@ -12,9 +12,10 @@ use regex::Regex;
 use minecraft_client_rs::Client;
 use reqwest::multipart::{Form, Part};
 use sysinfo::{Pid, ProcessExt, System, SystemExt};
-use tauri::{Manager, UserAttentionType, Window, WindowEvent};
+use tauri::{Manager, UserAttentionType, WebviewWindow, WindowEvent};
+use tauri::Emitter;
+use tauri_plugin_dialog::DialogExt;
 use tokio::{fs, io::AsyncReadExt};
-use tauri::api::dialog::blocking::FileDialogBuilder;
 
 use crate::{custom_servers::{manager::CustomServerManager, models::{CustomServer, CustomServerEventPayload}, providers::{bukkit::BukkitProvider, fabric::{FabricLoaderVersion, FabricProvider, FabricVersion}, folia::{FoliaBuilds, FoliaManifest, FoliaProvider}, forge::{ForgeManifest, ForgeProvider}, neoforge::{NeoForgeManifest, NeoForgeProvider}, paper::{PaperBuilds, PaperManifest, PaperProvider}, purpur::{PurpurProvider, PurpurVersions}, quilt::{QuiltManifest, QuiltProvider}, spigot::SpigotProvider, vanilla::{VanillaManifest, VanillaProvider, VanillaVersions}}}, minecraft::{launcher::{LauncherData, LaunchingParameter}, prelauncher, progress::ProgressUpdate}, utils::{total_memory, McDataHandler}, HTTP_CLIENT, LAUNCHER_DIRECTORY};
 use crate::app::api::{LoginData, NoRiskLaunchManifest};
@@ -76,10 +77,10 @@ async fn check_online_status() -> Result<bool, String> {
 
 #[tauri::command]
 fn open_url(url: &str, handle: tauri::AppHandle) -> Result<(), String> {
-    let window = tauri::WindowBuilder::new(
+    let window = tauri::WebviewWindowBuilder::new(
         &handle,
         "external", /* the unique window label */
-        tauri::WindowUrl::External(url.parse().unwrap()),
+        tauri::WebviewUrl::External(url.parse().unwrap()),
     ).build().unwrap();
     let _ = window.set_title("NoRiskClient");
     let _ = window.set_resizable(false);
@@ -91,13 +92,17 @@ fn open_url(url: &str, handle: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn upload_cape(norisk_token: &str, uuid: &str) -> Result<String, String> {
+async fn upload_cape(norisk_token: &str, uuid: &str, app: tauri::AppHandle) -> Result<String, String> {
     debug!("Uploading Cape...");
-    
-    let dialog_result = FileDialogBuilder::new()
+
+    let dialog_result = match app.dialog().file()
         .set_title("Select Cape")
         .add_filter("Pictures", &["png"])
-        .pick_file();
+        .blocking_pick_file()
+        .unwrap() {
+            tauri_plugin_dialog::FilePath::Path(p) => Some(p),
+            _ => None,
+    };
 
     CapeApiEndpoints::upload_cape(norisk_token, uuid, dialog_result.unwrap()).await
 }
@@ -470,10 +475,10 @@ pub async fn open_minecraft_logs_window(handle: tauri::AppHandle) -> Result<(), 
     let random_number: u64 = rand::thread_rng().gen_range(100000..999999);
     // Create a unique label using the random number
     let unique_label = format!("logs-{}", random_number);
-    let window = tauri::WindowBuilder::new(
+    let window = tauri::WebviewWindowBuilder::new(
         &handle,
         unique_label,
-        tauri::WindowUrl::App("logs.html".into()),
+        tauri::WebviewUrl::App("logs.html".into()),
     )
         .inner_size(1000.0, 800.0)
         .build()?;
@@ -490,10 +495,10 @@ pub async fn open_minecraft_crash_window(handle: tauri::AppHandle, crash_report_
     // Create a unique label using the random number
     let unique_label = format!("crash-{}", random_number);
     // Create the new window
-    let window = tauri::WindowBuilder::new(
+    let window = tauri::WebviewWindowBuilder::new(
         &handle,
         unique_label,
-        tauri::WindowUrl::App("crash.html".into()),
+        tauri::WebviewUrl::App("crash.html".into()),
     ).build()?;
 
     // Set window properties
@@ -964,16 +969,16 @@ async fn discord_auth_link(options: LauncherOptions, credentials: Credentials, a
     let token = credentials.norisk_credentials.get_token(options.experimental_mode)?;
     let url = format!("https://api{}.norisk.gg/api/v1/core/oauth/discord?token={}", if options.experimental_mode.clone() { "-staging" } else { "" }, token);
 
-    if let Some(window) = app.get_window("discord-signin") {
+    if let Some(window) = app.get_webview_window("discord-signin") {
         window.close()?;
     }
 
     let start = Utc::now();
 
-    let window = tauri::WindowBuilder::new(
+    let window = tauri::WebviewWindowBuilder::new(
         &app,
         "discord-signin",
-        tauri::WindowUrl::External(url.parse().unwrap()),
+        tauri::WebviewUrl::External(url.parse().unwrap()),
     )
         .title("Discord X NoRiskClient")
         .always_on_top(true)
@@ -989,7 +994,7 @@ async fn discord_auth_link(options: LauncherOptions, credentials: Credentials, a
             return Ok(());
         }
 
-        if window.url().as_str().starts_with("https://api.norisk.gg/api/v1/core/oauth/discord/complete") {
+        if window.url()?.as_str().starts_with("https://api.norisk.gg/api/v1/core/oauth/discord/complete") {
             tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
             window.close()?;
             return Ok(());
@@ -1021,14 +1026,14 @@ async fn microsoft_auth(app: tauri::AppHandle) -> Result<Option<Credentials>, cr
 
     let start = Utc::now();
 
-    if let Some(window) = app.get_window("signin") {
+    if let Some(window) = app.get_webview_window("signin") {
         window.close()?;
     }
 
-    let window = tauri::WindowBuilder::new(
+    let window = tauri::WebviewWindowBuilder::new(
         &app,
         "signin",
-        tauri::WindowUrl::External(flow.redirect_uri.parse().map_err(
+        tauri::WebviewUrl::External(flow.redirect_uri.parse().map_err(
             |_| {
                 crate::error::ErrorKind::OtherError(
                     "Error parsing auth redirect URL".to_string(),
@@ -1051,17 +1056,17 @@ async fn microsoft_auth(app: tauri::AppHandle) -> Result<Option<Credentials>, cr
         }
 
         if window
-            .url()
+            .url()?
             .as_str()
             .starts_with("https://login.live.com/oauth20_desktop.srf")
         {
             if let Some((_, code)) =
-                window.url().query_pairs().find(|x| x.0 == "code")
+                window.url()?.query_pairs().find(|x| x.0 == "code")
             {
                 window.close()?;
-                let credentials = accounts.login_finish(&code.clone(), flow, app.get_window("main").unwrap()).await?;
+                let credentials = accounts.login_finish(&code.clone(), flow, app.get_webview_window("main").unwrap()).await?;
 
-                app.get_window("main").unwrap().emit("microsoft-output", "NoRisk Token").unwrap_or_default();
+                app.get_webview_window("main").unwrap().emit("microsoft-output", "NoRisk Token").unwrap_or_default();
 
                 match accounts.refresh_norisk_token(&credentials.clone()).await {
                     Ok(credentials_with_norisk) => {
@@ -1085,7 +1090,7 @@ async fn microsoft_auth(app: tauri::AppHandle) -> Result<Option<Credentials>, cr
     Ok(None)
 }
 
-fn handle_stdout(window: &Arc<Mutex<Window>>, data: &[u8]) -> anyhow::Result<()> {
+fn handle_stdout(window: &Arc<Mutex<WebviewWindow>>, data: &[u8]) -> anyhow::Result<()> {
     let data = String::from_utf8(data.to_vec())?;
     if data.is_empty() {
         return Ok(()); // ignore empty lines
@@ -1115,7 +1120,7 @@ fn handle_stdout(window: &Arc<Mutex<Window>>, data: &[u8]) -> anyhow::Result<()>
     Ok(())
 }
 
-fn handle_stderr(window: &Arc<std::sync::Mutex<Window>>, data: &[u8]) -> anyhow::Result<()> {
+fn handle_stderr(window: &Arc<std::sync::Mutex<WebviewWindow>>, data: &[u8]) -> anyhow::Result<()> {
     let data = String::from_utf8(data.to_vec())?;
     if data.is_empty() {
         return Ok(()); // ignore empty lines
@@ -1126,7 +1131,7 @@ fn handle_stderr(window: &Arc<std::sync::Mutex<Window>>, data: &[u8]) -> anyhow:
     Ok(())
 }
 
-fn handle_progress(window: &Arc<std::sync::Mutex<Window>>, progress_update: ProgressUpdate) -> anyhow::Result<()> {
+fn handle_progress(window: &Arc<std::sync::Mutex<WebviewWindow>>, progress_update: ProgressUpdate) -> anyhow::Result<()> {
     window.lock().unwrap().emit("progress-update", progress_update)?;
     Ok(())
 }
@@ -1238,7 +1243,7 @@ async fn is_client_running(app_state: tauri::State<'_, AppState>) -> Result<(boo
 }
 
 #[tauri::command]
-async fn run_client(branch: String, options: LauncherOptions, force_server: Option<String>, mods: Vec<LoaderMod>, shaders: Vec<Shader>, resourcepacks: Vec<ResourcePack>, datapacks: Vec<Datapack>, window: Window, app_state: tauri::State<'_, AppState>) -> Result<(), crate::error::Error> {
+async fn run_client(branch: String, options: LauncherOptions, force_server: Option<String>, mods: Vec<LoaderMod>, shaders: Vec<Shader>, resourcepacks: Vec<ResourcePack>, datapacks: Vec<Datapack>, app_state: tauri::State<'_, AppState>, window: WebviewWindow) -> Result<(), crate::error::Error> {
     debug!("Starting Client with branch {}",branch);
     if is_client_running(app_state.clone()).await?.0 {
         return Err(ErrorKind::LauncherError("client is already running".to_string()).into());
@@ -1449,13 +1454,13 @@ async fn create_custom_server(name: &str, mc_version: &str, loader_version: Opti
 }
 
 #[tauri::command]
-async fn initialize_custom_server(custom_server: CustomServer, additional_data: Option<&str>, window: Window) -> Result<(), String> {
+async fn initialize_custom_server(custom_server: CustomServer, additional_data: Option<&str>, window: WebviewWindow) -> Result<(), String> {
     let window_mutex = Arc::new(std::sync::Mutex::new(window));
     CustomServerManager::initialize_server(&window_mutex, custom_server, additional_data).await.map_err(|e| format!("unable to initialize custom server: {:?}", e))
 }
 
 #[tauri::command]
-async fn run_custom_server(custom_server: CustomServer, options: LauncherOptions, token: String, window: Window) -> Result<(), String> {
+async fn run_custom_server(custom_server: CustomServer, options: LauncherOptions, token: String, window: WebviewWindow) -> Result<(), String> {
     let window_mutex = Arc::new(std::sync::Mutex::new(window.clone()));
 
     thread::spawn(move || {
@@ -1474,7 +1479,7 @@ async fn run_custom_server(custom_server: CustomServer, options: LauncherOptions
 }
 
 #[tauri::command]
-async fn check_if_custom_server_running(window: Window) -> Result<(bool, String), String> {
+async fn check_if_custom_server_running(window: WebviewWindow) -> Result<(bool, String), String> {
     let window_mutex = Arc::new(std::sync::Mutex::new(window));
 
     let latest_running_server = CustomServerManager::load_latest_running_server().await.unwrap_or_default();
@@ -1508,7 +1513,7 @@ async fn check_if_custom_server_running(window: Window) -> Result<(bool, String)
 }
 
 #[tauri::command]
-pub async fn terminate_custom_server(launcher_was_closed: bool, window: Window) -> Result<(), String> {
+pub async fn terminate_custom_server(launcher_was_closed: bool, window: WebviewWindow) -> Result<(), String> {
     let latest_running_server = CustomServerManager::load_latest_running_server().await.unwrap();
     
     let mut system = System::new_all();
@@ -1540,7 +1545,7 @@ pub async fn terminate_custom_server(launcher_was_closed: bool, window: Window) 
 }
 
 #[tauri::command]
-async fn execute_rcon_command(server_id: String, timestamp: String, log_type: String, command: String, window: Window) -> Result<String, String> {
+async fn execute_rcon_command(server_id: String, timestamp: String, log_type: String, command: String, window: WebviewWindow) -> Result<String, String> {
     let mut client = Client::new("127.0.0.1:25594".to_string()).unwrap();
     client.authenticate("minecraft".to_string()).unwrap();
     
@@ -1702,13 +1707,17 @@ async fn check_feature_whitelist(feature: &str, options: LauncherOptions, creden
 /// Runs the GUI and returns when the window is closed.
 pub fn gui_main() {
     tauri::Builder::default()
-        .on_window_event(move |event| match event.event() {
+        .on_window_event(move |_, event| match event {
             WindowEvent::Destroyed => {
                 info!("Window destroyed, quitting application");
             }
             _ => {}
         })
-        .plugin(tauri_plugin_fs_watch::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
         .setup(|_| {
             Ok(())
         })
