@@ -1,5 +1,5 @@
 <script>
-	import { invoke } from '@tauri-apps/api/tauri';
+  import { invoke } from '@tauri-apps/api/core';
   import VirtualList from "../utils/VirtualList.svelte";
   import Profile from "./Profile.svelte";
   import ProfileSettingsModal from "./ProfileSettingsModal.svelte";
@@ -8,7 +8,7 @@
   import { fetchProfiles, profiles } from "../../stores/profilesStore.js";
   import BranchSwitcher from "../BranchSwitcher.svelte";
   import { v4 as uuidv4 } from "uuid";
-  import { open } from "@tauri-apps/api/dialog";
+  import { open } from "@tauri-apps/plugin-dialog";
   import { addNotification } from "../../stores/notificationStore.js";
   import { noriskLog } from "../../utils/noriskUtils.js";
   import { openConfirmPopup } from "../../utils/popupUtils.js";

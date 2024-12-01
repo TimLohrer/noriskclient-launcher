@@ -293,7 +293,7 @@ async fn get_shader(slug: &str, params: &str) -> Result<Shader, Error> {
 }
 
 #[tauri::command]
-async fn download_shader(options: LauncherOptions, branch: &str, shader: Shader, window: Window) -> Result<(), Error> {
+async fn download_shader(options: LauncherOptions, branch: &str, shader: Shader, window: WebviewWindow) -> Result<(), Error> {
     ShaderManager::download_shader(options, branch, &shader, window).await
 }
 
@@ -315,7 +315,7 @@ async fn get_resourcepack(slug: &str, params: &str) -> Result<ResourcePack, Erro
 }
 
 #[tauri::command]
-async fn download_resourcepack(options: LauncherOptions, branch: &str, resourcepack: ResourcePack, window: Window) -> Result<(), Error> {
+async fn download_resourcepack(options: LauncherOptions, branch: &str, resourcepack: ResourcePack, window: WebviewWindow) -> Result<(), Error> {
     ResourcePackManager::download_resourcepack(options, branch, &resourcepack, window).await
 }
 
@@ -337,7 +337,7 @@ async fn get_datapack(slug: &str, params: &str, world: &str) -> Result<Datapack,
 }
 
 #[tauri::command]
-async fn download_datapack(options: LauncherOptions, branch: &str, world: &str, datapack: Datapack, window: Window) -> Result<(), Error> {
+async fn download_datapack(options: LauncherOptions, branch: &str, world: &str, datapack: Datapack, window: WebviewWindow) -> Result<(), Error> {
     DataPackManager::download_datapack(options, branch, world, &datapack, window).await
 }
 
@@ -1091,7 +1091,7 @@ async fn discord_auth_link(
         }
 
         if window
-            .url()
+            .url()?
             .as_str()
             .starts_with("https://api.norisk.gg/api/v1/core/oauth/discord/complete")
         {
@@ -1176,7 +1176,7 @@ async fn microsoft_auth(app: tauri::AppHandle) -> Result<Option<Credentials>, Er
             .as_str()
             .starts_with("https://login.live.com/oauth20_desktop.srf")
         {
-            if let Some((_, code)) = window.url().query_pairs().find(|x| x.0 == "code") {
+            if let Some((_, code)) = window.url()?.query_pairs().find(|x| x.0 == "code") {
                 window.close()?;
                 let credentials = accounts
                     .login_finish(&code.clone(), flow, app.get_webview_window("main").unwrap())
