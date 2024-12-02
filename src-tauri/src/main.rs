@@ -60,9 +60,6 @@ const TRIGGER_FILE_SIZE: u64 = 2 * 1024 * 1000;
 const LOG_FILE_COUNT: u32 = 10;
 
 pub fn main() -> anyhow::Result<()> {
-    // Path fix
-    let _ = fix_path_env::fix();
-
     let log_folder = LAUNCHER_DIRECTORY.data_dir().join("logs");
     let latest_log = log_folder.join("latest.log");
     let archive_folder = log_folder.join("archive").join("launcher.{}.log");
@@ -129,6 +126,7 @@ pub fn main() -> anyhow::Result<()> {
     info!("Creating launcher directories...");
     fs::create_dir_all(LAUNCHER_DIRECTORY.data_dir())?;
     fs::create_dir_all(LAUNCHER_DIRECTORY.config_dir())?;
+    fs::create_dir_all(LAUNCHER_DIRECTORY.data_dir().join("nrc_cache"))?;
     info!("Finish launcher directories...");
 
     // app

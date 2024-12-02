@@ -1,11 +1,10 @@
 <script>
-  import { invoke } from "@tauri-apps/api";
-  import { removeFile } from "@tauri-apps/api/fs";
-  import { open } from "@tauri-apps/api/dialog";
+  import { invoke } from "@tauri-apps/api/core";
+  import { remove, watch } from "@tauri-apps/plugin-fs";
+  import { open } from "@tauri-apps/plugin-dialog";
   import ModrinthSearchBar from "../widgets/ModrinthSearchBar.svelte";
   import ResourcePackItem from "./ResourcePackItem.svelte";
   import { tick, onDestroy, onMount } from "svelte";
-  import { watch } from "tauri-plugin-fs-watch-api";
   import { listen } from "@tauri-apps/api/event";
   import { branches, currentBranchIndex } from "../../../stores/branchesStore.js";
   import { launcherOptions } from "../../../stores/optionsStore.js";
@@ -14,7 +13,7 @@
   import { getNoRiskToken, noriskUser, noriskLog } from "../../../utils/noriskUtils.js";
   import { addNotification } from "../../../stores/notificationStore.js";
   import { translations } from '../../../utils/translationUtils.js';
-    
+
   /** @type {{ [key: string]: any }} */
   $: lang = $translations;
 
@@ -40,7 +39,7 @@
 
   let filterCategories = [];
   let filters = {};
-  
+
   let lastFileDrop = -1;
   listen("tauri://file-drop", files => {
     if (currentTabIndex != 1) {
@@ -75,7 +74,7 @@
 
   async function updateResourcePacks(newResourcePacks) {
     resourcePacks = newResourcePacks;
-    
+
     // Try to scroll to the previous position
     try {
       await tick();
@@ -84,7 +83,7 @@
   }
   async function updateProfileResourcePacks(newResourcePacks) {
     launcherProfiles.addons[currentBranch].resourcePacks = newResourcePacks;
-    
+
     // Try to scroll to the previous position
     try {
       await tick();
@@ -134,7 +133,7 @@
     updateResourcePacks(resourcePacks);
     await invoke("get_resourcepack", {
       slug: resourcePack.slug,
-      params: `?game_versions=["${launchManifest.build.mcVersion}"]`,
+      params: `?game_versions=["${launchManifest.build.mc_version}"]`,
     }).then(async (result) => {
       launcherProfiles.addons[currentBranch].resourcePacks.pushIfNotExist(result, function(e) {
         return e.slug === result.slug;
@@ -169,7 +168,7 @@
   async function getFeaturedResourcePacks() {
     await invoke("get_featured_resourcepacks", {
       branch: currentBranch,
-      mcVersion: launchManifest.build.mcVersion,
+      mcVersion: launchManifest.build.mc_version,
     }).then((result) => {
       console.debug("Featured ResourcePacks", result);
       result.forEach(resourcePack => resourcePack.featured = true);
@@ -188,14 +187,14 @@
       }
       oldResourcePacks = featuredResourcePacks;
     }
-    
+
     // WENN WIR DAS NICHT MACHEN BUGGEN LIST ENTRIES INEINANDER, ICH SCHLAGE IRGENDWANN DEN TYP DER DIESE VIRTUAL LIST GEMACHT HAT
     // Update: Ich habe ne eigene Virtual List gemacht 📉
     updateResourcePacks([]);
 
     await invoke("search_resourcepacks", {
       params: {
-        facets: `[["versions:${launchManifest.build.mcVersion}"], ["project_type:resourcepack"]${Object.values(filters).filter(filter => filter.enabled).length > 0 ? ", " : ""}${Object.values(filters).filter(filter => filter.enabled).map(filter => `["categories:'${filter.id}'"]`).join(", ")}]`,
+        facets: `[["versions:${launchManifest.build.mc_version}"], ["project_type:resourcepack"]${Object.values(filters).filter(filter => filter.enabled).length > 0 ? ", " : ""}${Object.values(filters).filter(filter => filter.enabled).map(filter => `["categories:'${filter.id}'"]`).join(", ")}]`,
         index: search_index,
         limit: search_limit,
         offset: search_offset,
@@ -244,10 +243,10 @@
 
       await invoke("get_resourcepack", {
         slug: resourcePack.slug,
-        params: `?game_versions=["${launchManifest.build.mcVersion}"]`,
+        params: `?game_versions=["${launchManifest.build.mc_version}"]`,
       }).then(async resourcePackVersion => {
         deleteResourcePackFile(resourcePackVersion.file_name);
-        
+
         launcherProfiles.store();
         const prev = [resourcePacks, launcherProfiles.addons[currentBranch].resourcePacks]
         updateResourcePacks([]);

@@ -1,8 +1,8 @@
-import { invoke } from "@tauri-apps/api";
+import { invoke } from "@tauri-apps/api/core";
 import { launcherOptions, saveOptions } from "./optionsStore.js";
 import { get, writable } from "svelte/store";
 import { defaultUser } from "./credentialsStore.js";
-import { noriskLog } from "../utils/noriskUtils.js";
+import {isApiOnline, noriskLog} from "../utils/noriskUtils.js";
 
 export const branches = writable([]);
 export const currentBranchIndex = writable(0);
