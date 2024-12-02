@@ -3,7 +3,7 @@
   import VirtualList from "../components/utils/VirtualList.svelte";
   import LogMessage from "./LogMessage.svelte";
   import { onMount } from "svelte";
-  import { appWindow } from "@tauri-apps/api/window";
+  import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { invoke } from "@tauri-apps/api/core";
   import { addNotification } from "../stores/notificationStore.js";
   import { fetchOptions, launcherOptions } from "../stores/optionsStore.js";
@@ -29,7 +29,7 @@
   let minecraftLogs = [];
 
   onMount(async () => {
-    const splitted = appWindow.label.split(":")
+    const splitted = getCurrentWebviewWindow().label.split(":")
     id = splitted[1];
     isLive = splitted[2] === "true"; //nojoke anders hat es nicht geupdated
     console.log("###",splitted[2])

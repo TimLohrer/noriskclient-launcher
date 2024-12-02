@@ -2,7 +2,7 @@
   import AccountListItem from "./AccountListItem.svelte";
   import { fetchUsers, users, defaultUser } from "../../stores/credentialsStore.js";
   import { translations } from "../../utils/translationUtils.js";
-  import { invoke } from "@tauri-apps/api";
+  import { invoke } from "@tauri-apps/api/core";
   import { addNotification } from "../../stores/notificationStore.js";
   import AccountListLoading from "./AccountListLoading.svelte";
 
