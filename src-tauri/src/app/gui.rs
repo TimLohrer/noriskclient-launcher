@@ -1232,7 +1232,7 @@ async fn microsoft_auth(app: tauri::AppHandle) -> Result<Option<Credentials>, Er
                             "After Microsoft Auth: Error Fetching NoRiskClient Token {:?}",
                             err
                         );
-                        app.get_window("main")
+                        app.get_webview_window("main")
                             .unwrap()
                             .emit("microsoft-output", "signIn.step.notWhitelisted")
                             .unwrap_or_default();
@@ -2256,6 +2256,7 @@ pub fn gui_main() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_shell::init())
         .setup(|app| {
             NRCCache::initialize_app_state(app);
             Ok(())

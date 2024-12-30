@@ -1,5 +1,5 @@
 <script>
-    import { open } from '@tauri-apps/api/shell';
+    import { open } from '@tauri-apps/plugin-shell';
     import { preventSelection } from "../../utils/svelteUtils.js";
     import { translations } from '../../utils/translationUtils.js';
     

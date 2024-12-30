@@ -11,7 +11,7 @@
   import { isInMaintenanceMode, noriskError, noriskUser, isApiOnline, isWinterSeason } from "./utils/noriskUtils.js";
   import { addNotification } from "./stores/notificationStore.js";
   import { activePopup, openConfirmPopup } from "./utils/popupUtils.js";
-  import { appWindow } from "@tauri-apps/api/window";
+  import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import Home from "./pages/Home.svelte";
   import Notifications from "./components/notification/Notifications.svelte";
   import LauncherSettings from "./pages/LauncherSettings.svelte";
@@ -73,7 +73,7 @@
       openPrivacyPolicyPopup();
     }).catch(error => {
       noriskError("Failed to check privacy policy: " + error);
-      appWindow.close();
+      getCurrentWebviewWindow().close();
     });
 
     const clientLaunchError = await listen("client-error", async (event) => {
@@ -140,7 +140,7 @@
         cancelButton: lang.privacyPolicy.button.exit,
         allowEscape: false,
         onConfirm: acceptPrivacyPolicy,
-        onCancel: () => appWindow.close(),
+        onCancel: () => getCurrentWebviewWindow().close(),
         width: "35",
         height: "25"
       });

@@ -1,5 +1,5 @@
 <script>
-	import { relaunch } from '@tauri-apps/api/process';
+    import { relaunch } from '@tauri-apps/plugin-process';
     import Router from "./Router.svelte";
     import {onMount} from "svelte";
     import {defaultUser, fetchDefaultUserOrError} from "./stores/credentialsStore.js";
@@ -22,7 +22,7 @@
     import {launcherOptions} from "./stores/optionsStore.js";
     import {profiles} from "./stores/profilesStore.js";
     import {getAnnouncements, getChangeLogs, getLastViewedPopups} from "./utils/popupUtils.js";
-    import { WebviewWindow } from "@tauri-apps/api/webviewWindow";
+    import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
     import { invoke } from "@tauri-apps/api/core";
     import {addNotification} from "./stores/notificationStore.js";
     import {language, setLanguage, translations} from "./utils/translationUtils.js";
@@ -130,7 +130,7 @@
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
                 <h1 class="button red-text" on:click={fixAndRestart}>Fix & Restart</h1>
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
-                <h1 class="button exit-button red-text" on:click={appWindow.close}>Exit</h1>
+                <h1 class="button exit-button red-text" on:click={() => {getCurrentWebviewWindow().close();}}>Exit</h1>
             {/if}
         </div>
     {/if}

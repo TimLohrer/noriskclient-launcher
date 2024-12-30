@@ -8,7 +8,7 @@
   import { addNotification } from "../../stores/notificationStore.js";
   import { delay } from "../../utils/svelteUtils.js";
   import { translations } from '../../utils/translationUtils.js';
-  import { invoke } from "@tauri-apps/api";
+  import { invoke } from "@tauri-apps/api/core";
 
   /** @type {{ [key: string]: any }} */
   $: lang = $translations;

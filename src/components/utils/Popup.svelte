@@ -1,7 +1,7 @@
 <script>
 	import { translations } from './../../utils/translationUtils.js';
     import { onMount } from 'svelte';
-    import { open } from '@tauri-apps/api/shell';
+    import { open } from '@tauri-apps/plugin-shell';
     import { activePopup, closePopup as killPopup } from '../../utils/popupUtils.js';
     import ConfigTextInput from '../config/inputs/ConfigTextInput.svelte';
     import ConfigFolderInput from '../config/inputs/ConfigFolderInput.svelte';
