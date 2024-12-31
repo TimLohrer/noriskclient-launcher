@@ -8,7 +8,6 @@
 
   export let title;
   export let value;
-  export let extentions = ['*'];
   export let requiredFileName = ["*"];
   export let defaultValue = undefined;
   export let id = "";
@@ -19,12 +18,11 @@
       const result = await open({
         title: lang.fileInput.windowTitle.replace("{file}", requiredFileName.length > 0 ? `(${requiredFileName})` : ''),
         defaultPath: value,
-        directory: false,
-        filters: [{ name: lang.fileInput.filterName, extensions: extentions }]
+        directory: false
       })
       if (typeof result == 'string' && result.length > 0) {
         const splitter = result.includes('\\') ? '\\' : '/';
-        if (!requiredFileName.includes("*") && !requiredFileName.includes(result.split(splitter).pop().split('.')[result.split(splitter).pop().split('.').length - 2])) {
+        if (!requiredFileName.includes("*") && !requiredFileName.includes(result.split(splitter).pop().split('.')[result.split(splitter).pop().includes('.') ? result.split(splitter).pop().split('.').length - 2 : 0])) {
           addNotification(lang.fileInput.notification.invalidFileName.replace("{fileNames}", requiredFileName.map(f => `"${f}"`).join(" or ")));
           return;
         }
