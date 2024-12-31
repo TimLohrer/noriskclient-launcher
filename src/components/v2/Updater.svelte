@@ -2,13 +2,13 @@
   import { quintOut } from "svelte/easing";
   import { scale } from "svelte/transition";
   import { onMount } from "svelte";
-  import { checkUpdate, installUpdate, onUpdaterEvent } from "@tauri-apps/api/updater";
-  import { relaunch } from "@tauri-apps/api/process";
+  import { check } from "@tauri-apps/plugin-updater";
+  import { relaunch } from "@tauri-apps/plugin-process";
   import { isApiOnline, isCheckingForUpdates, noriskLog, noriskError } from "../../utils/noriskUtils.js";
   import { addNotification } from "../../stores/notificationStore.js";
   import { delay } from "../../utils/svelteUtils.js";
   import { translations } from '../../utils/translationUtils.js';
-  import { invoke } from "@tauri-apps/api";
+  import { invoke } from "@tauri-apps/api/core";
 
   /** @type {{ [key: string]: any }} */
   $: lang = $translations;
@@ -18,25 +18,26 @@
   onMount(async () => {
     let interval = animateLoadingText();
 
-    const unlisten = await onUpdaterEvent(async ({ error, status }) => {
-      // This will log all updater events, including status updates and errors.
-      noriskLog(`Updater event: ${error} ${status}`);
-      if (status.toString() === "DOWNLOADED") {
-        noriskLog(`Force Killing Process (Triggered By Update Event)`);
-        await invoke("quit_everything").catch(reason => {
-          noriskError(reason);
-        });
-      }
-    });
+    // due to migration to tauri 2.0
+    // const unlisten = await onUpdaterEvent(async ({ error, status }) => {
+    //   // This will log all updater events, including status updates and errors.
+    //   noriskLog(`Updater event: ${error} ${status}`);
+    //   if (status.toString() === "DOWNLOADED") {
+    //     noriskLog(`Force Killing Process (Triggered By Update Event)`);
+    //     await invoke("quit_everything").catch(reason => {
+    //       noriskError(reason);
+    //     });
+    //   }
+    // });
 
     try {
-      const { shouldUpdate, manifest } = await checkUpdate();
+      const update = await check();
 
-      if (shouldUpdate) {
+      if (update?.available) {
         noriskLog(`Installing update: ${manifest?.version} ${manifest?.body}`);
 
         // Install the update. This will also restart the app on Windows!
-        await installUpdate().catch(reason => {
+        await update.downloadAndInstall().catch(reason => {
           addNotification(reason);
         });
         noriskLog(`Update was installed`);

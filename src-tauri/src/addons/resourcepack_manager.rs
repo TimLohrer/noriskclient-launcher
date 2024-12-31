@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::Result;
 use log::{debug, error, info};
-use tauri::Window;
+use tauri::{WebviewWindow, Emitter};
 use tokio::fs;
 
 use crate::{addons::progress::AddonsProgress, app::{api::ApiEndpoints, app_data::LauncherOptions, gui::FileData, modrinth_api::{ModrinthApiEndpoints, ResourcePack, ResourcePackInfo}}, error::{Error, ErrorKind}, utils::download_file};
@@ -69,7 +69,7 @@ impl ResourcePackManager {
             .join("resourcepacks")
     }
 
-    pub async fn download_resourcepack(options: LauncherOptions, branch: &str, resourcepack: &ResourcePack, window: Window) -> Result<(), Error> {
+    pub async fn download_resourcepack(options: LauncherOptions, branch: &str, resourcepack: &ResourcePack, window: WebviewWindow) -> Result<(), Error> {
         let resourcepack_path = Self::get_resourcepack_folder(options, branch).join(&resourcepack.file_name);
     
         // Do we need to download the ResourcePack?

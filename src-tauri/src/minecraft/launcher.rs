@@ -44,7 +44,6 @@ impl<D: Send + Sync> LauncherData<D> {
     }
 }
 
-
 impl<D: Send + Sync> ProgressReceiver for LauncherData<D> {
     fn progress_update(&self, progress_update: ProgressUpdate) {
         let _ = (self.on_progress)(&self.data, progress_update, self.instance_id, self.instances.clone());
@@ -55,7 +54,7 @@ impl<D: Send + Sync> ProgressReceiver for LauncherData<D> {
     }
 }
 
-pub async fn launch<D: Send + Sync>(multiple_instances: bool, norisk_token: &str, uuid: &str, data: &Path, manifest: NoRiskLaunchManifest, version_profile: VersionProfile, launching_parameter: LaunchingParameter, launcher_data: LauncherData<D>, window: Arc<Mutex<tauri::Window>>, instance_id: Uuid) -> Result<()> {
+pub async fn launch<D: Send + Sync>(multiple_instances: bool, norisk_token: &str, uuid: &str, data: &Path, manifest: NoRiskLaunchManifest, version_profile: VersionProfile, launching_parameter: LaunchingParameter, launcher_data: LauncherData<D>, window: Arc<Mutex<tauri::WebviewWindow>>, instance_id: Uuid) -> Result<()> {
     let launcher_data_arc = Arc::new(launcher_data);
 
     let features: HashSet<String> = HashSet::new();

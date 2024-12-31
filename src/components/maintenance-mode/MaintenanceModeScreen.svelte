@@ -1,6 +1,6 @@
 <script>
-    import { open } from '@tauri-apps/api/shell';
-    import { appWindow } from "@tauri-apps/api/window";
+    import { open } from '@tauri-apps/plugin-shell';
+    import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
     import { openInputPopup } from "../../utils/popupUtils.js";
     import { setMaintenanceMode } from "../../utils/noriskUtils.js";
     import { translations } from './../../utils/translationUtils.js';
@@ -32,7 +32,7 @@
         <p class="discord" on:click={() => open("https://discord.norisk.gg")}>-&gt; Discord</p>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
-        <h1 class="quit-button red-text" on:click={() => { appWindow.close(); }}>{lang.maintenanceMode.button.exit}</h1>
+        <h1 class="quit-button red-text" on:click={() => { getCurrentWebviewWindow.close(); }}>{lang.maintenanceMode.button.exit}</h1>
     </div>
 </div>
 

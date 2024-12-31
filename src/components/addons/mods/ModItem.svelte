@@ -1,5 +1,5 @@
 <script>
-	import { invoke } from '@tauri-apps/api';
+	import { invoke } from '@tauri-apps/api/core';
     import { createEventDispatcher } from "svelte";
     import { onMount, tick } from "svelte";
     import { openInfoPopup, openConfirmPopup } from "../../../utils/popupUtils.js";
