@@ -63,44 +63,84 @@ export async function fetchProfiles() {
   if (parseInt(get(version).split(".")[2] ?? "-1") >= 12) {
     const launcherProfiles = get(profiles);
     const todo = [launcherProfiles.mainProfiles, launcherProfiles.experimentalProfiles];
-    await Promise.all(
-      todo.map(async profiles => {
-        await Promise.all(
-          profiles.map(async profile => {
-            await Promise.all(
-              profile.mods.map(async mod => {
-                const artifact_data = mod.value.source.artifact.split(":");
-                if (artifact_data[0] === "CUSTOM" && artifact_data[1] === profile.name) {
-                  // Update to new format
-                  mod.value.source.artifact = `CUSTOM:${profile.id}:${artifact_data[2]}`;
 
-                  // Copy to new location
-                  const options = get(launcherOptions);
-                  const dataPath = options.dataPath;
-                  let splitter = "";
-                  if (dataPath.split("/")[0] == "") {
-                    splitter = "/";
-                  } else {
-                    splitter = "\\";
+    // Check if any mod actually needs migration before proceeding
+    let needsMigration = false;
+    for (const profileList of todo) {
+      for (const profile of profileList) {
+        for (const mod of profile.mods) {
+          const artifact_data = mod.value.source.artifact.split(":");
+          if (artifact_data[0] === "CUSTOM" && artifact_data[1] === profile.name) {
+            needsMigration = true;
+            break; // Found one, no need to check further in this profile
+          }
+        }
+        if (needsMigration) break; // Found one, no need to check further in this list
+      }
+      if (needsMigration) break; // Found one, no need to check further
+    }
+
+    if (needsMigration) {
+      noriskLog("Performing custom mod migration...");
+      let migrationOccurred = false; // Track if any mod was actually migrated in this run
+      await Promise.all(
+        todo.map(async profiles => {
+          await Promise.all(
+            profiles.map(async profile => {
+              await Promise.all(
+                profile.mods.map(async mod => {
+                  const artifact_data = mod.value.source.artifact.split(":");
+                  if (artifact_data[0] === "CUSTOM" && artifact_data[1] === profile.name) {
+                    // Update to new format
+                    const oldArtifact = mod.value.source.artifact;
+                    mod.value.source.artifact = `CUSTOM:${profile.id}:${artifact_data[2]}`;
+                    migrationOccurred = true; // Mark that a migration happened
+                    noriskLog(`Updating mod artifact from ${oldArtifact} to ${mod.value.source.artifact}`);
+
+                    // Copy to new location
+                    const options = get(launcherOptions);
+                    const dataPath = options.dataPath;
+                    let splitter = "";
+                    if (dataPath.split("/")[0] == "") {
+                      splitter = "/";
+                    } else {
+                      splitter = "\\";
+                    }
+
+                    const oldLocation = [dataPath, "mod_cache", "CUSTOM", profile.name, artifact_data[2]].join(splitter);
+                    noriskLog(`Attempting to migrate custom mod ${artifact_data[2]} from ${oldLocation}`);
+
+                    await invoke("save_custom_mod_to_folder", {
+                      options: get(launcherOptions),
+                      profileId: profile.id,
+                      file: { name: artifact_data[2], location: oldLocation },
+                    }).then(() => {
+                      noriskLog(`Successfully migrated custom mod ${artifact_data[2]} to new location for profile ${profile.id}`);
+                    }).catch((error) => {
+                      // Don't halt everything, but log the error
+                      addNotification(`Failed to migrate custom mod ${artifact_data[2]} from ${oldLocation}: ${error}`);
+                      noriskLog(`Failed to migrate custom mod ${artifact_data[2]} from ${oldLocation}: ${error}`);
+                      // Revert artifact change if copy failed
+                      mod.value.source.artifact = oldArtifact;
+                      migrationOccurred = false; // Revert migration status for this mod
+                      noriskLog(`Reverted artifact change for ${artifact_data[2]} due to copy failure.`);
+                    });
                   }
-
-                  await invoke("save_custom_mod_to_folder", {
-                    options: get(launcherOptions),
-                    profileId: profile.id,
-                    file: { name: artifact_data[2], location: [dataPath, "mod_cache", "CUSTOM", profile.name, artifact_data[2]].join(splitter) },
-                  }).then(() => {
-                    noriskLog(`Migrated custom mod ${artifact_data[2]} to new location`);
-                  }).catch((error) => {
-                    addNotification(`Failed to migrate custom mod ${artifact_data[2]} to new location: ${error}`);
-                    noriskLog(`Failed to migrate custom mod ${artifact_data[2]} to new location: ${error}`);
-                  });
-                }
-              })
-            );
-          })
-        );
-      })
-    );
-    launcherProfiles.store();
+                })
+              );
+            })
+          );
+        })
+      );
+      // Only save if a migration actually occurred successfully
+      if (migrationOccurred) {
+        noriskLog("Custom mod migration complete, saving updated profiles.");
+        launcherProfiles.store();
+      } else {
+        noriskLog("Custom mod migration check complete, no changes needed or migration failed.");
+      }
+    } else {
+      noriskLog("Skipping custom mod migration check: No mods in old format found.");
+    }
   }
 }
