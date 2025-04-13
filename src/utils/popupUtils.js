@@ -1,8 +1,9 @@
 import { get, writable } from "svelte/store";
 import { addNotification } from "../stores/notificationStore";
-import { invoke } from "@tauri-apps/api";
+import { invoke } from "@tauri-apps/api/core";
 import { pop, push, replace } from "svelte-spa-router";
-import { noriskLog } from "./noriskUtils";
+import {isApiOnline, noriskLog} from "./noriskUtils";
+import { translations } from "./translationUtils";
 
 export const activePopup = writable(null);
 export const changeLogs = writable(null);
@@ -18,9 +19,10 @@ export function closePopup() {
 
 export function openInfoPopup({
     title = null,
-    content = "Empty!",
+    content = get(translations).popup.defaultContent,
     closeButton = null,
     onClose = () => { },
+    allowEscape = true,
     height = null,
     width = null,
     titleFontSize = null,
@@ -32,20 +34,24 @@ export function openInfoPopup({
         content: content,
         closeButton: closeButton,
         onClose: onClose,
+        allowEscape: allowEscape,
         height: height,
         width: width,
         titleFontSize: titleFontSize,
         contentFontSize: contentFontSize,
     });
+
+    return closePopup;
 }
 
 export function openConfirmPopup({
     title = null,
-    content = "Empty!",
+    content = get(translations).popup.defaultContent,
     confirmButton = null,
-    closeButton = null,
+    cancelButton = null,
     onConfirm = () => { },
     onCancel = () => { },
+    allowEscape = true,
     height = null,
     width = null,
     titleFontSize = null,
@@ -56,19 +62,22 @@ export function openConfirmPopup({
         title: title,
         content: content,
         confirmButton: confirmButton,
-        closeButton: closeButton,
+        cancelButton: cancelButton,
         onConfirm: onConfirm,
         onCancel: onCancel,
+        allowEscape: allowEscape,
         height: height,
         width: width,
         titleFontSize: titleFontSize,
         contentFontSize: contentFontSize,
     });
+
+    return closePopup;
 }
 
 export function openInputPopup({
     title = null,
-    content = "Empty!",
+    content = get(translations).popup.defaultContent,
     inputType = "TEXT",
     inputName = null,
     inputValue = "",
@@ -79,6 +88,7 @@ export function openInputPopup({
     liveValidation = true,
     onConfirm = (input) => { },
     onCancel = () => { },
+    allowEscape = true,
     height = null,
     width = null,
     titleFontSize = null,
@@ -98,18 +108,22 @@ export function openInputPopup({
         liveValidation: liveValidation,
         onConfirm: onConfirm,
         onCancel: onCancel,
+        allowEscape: allowEscape,
         height: height,
         width: width,
         titleFontSize: titleFontSize,
         contentFontSize: contentFontSize,
     });
+
+    return closePopup;
 }
 
 export function openErrorPopup({
     title = null,
-    content = "Empty!",
+    content = get(translations).popup.defaultContent,
     closeButton = null,
     onClose = () => { },
+    allowEscape = true,
     height = null,
     width = null,
     titleFontSize = null,
@@ -121,16 +135,34 @@ export function openErrorPopup({
         content: content,
         closeButton: closeButton,
         onClose: onClose,
+        allowEscape: allowEscape,
         height: height,
         width: width,
         titleFontSize: titleFontSize,
         contentFontSize: contentFontSize,
     });
+
+    return closePopup;
+}
+
+export function openLoadingPopup({
+    content = "",
+    onClose = () => { },
+}) {
+    activePopup.set({
+        type: "INFO",
+        title: "Loading",
+        content: content,
+        onClose: onClose
+    });
+
+    return closePopup;
 }
 
 // ChangeLog and Announcements
 
 export async function getChangeLogs() {
+    if (!get(isApiOnline)) return;
     await invoke("get_changelogs").then(result => {
         changeLogs.set(result);
         noriskLog("Change Logs: " + JSON.stringify(result));
@@ -140,6 +172,7 @@ export async function getChangeLogs() {
 }
 
 export async function getAnnouncements() {
+    if (!get(isApiOnline)) return;
     await invoke("get_announcements").then(result => {
         announcements.set(result);
         noriskLog("Announcements: " + JSON.stringify(result));

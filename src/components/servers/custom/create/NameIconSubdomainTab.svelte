@@ -1,10 +1,14 @@
 <script>
-    import {invoke} from "@tauri-apps/api";
+    import { invoke } from "@tauri-apps/api/core";
     import TextInput from "../../../config/inputs/ConfigTextInput.svelte";
     import {createEventDispatcher} from "svelte";
     import { launcherOptions } from "../../../../stores/optionsStore.js";
     import { defaultUser } from "../../../../stores/credentialsStore.js";
     import { addNotification } from "../../../../stores/notificationStore.js";
+    import { translations } from '../../../../utils/translationUtils.js';
+    
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
 
     const dispatch = createEventDispatcher()
 
@@ -21,17 +25,17 @@
         }).then(() => {
             dispatch('next');
         }).catch((error) => {
-            addNotification("Failed to check subdomain: " + error);
+            addNotification(lang.servers.custom.create.nameAndSubdomain.notification.failedToCheckSubdomain.replace("{error}", error));
         });
     }
 </script>
 
 <div class="tab-wrapper">
-    <h1 class="title">Server Setup</h1>
+    <h1 class="title">{lang.servers.custom.create.nameAndSubdomain.title}</h1>
     <div class="row">
         <div class="column" style="width: 65%;">
-            <TextInput bind:value={name} title="Server Name" placeholder="Your server name..." autofocus={true} />
-            <TextInput bind:value={subdomain} title="Domain" placeholder="Your custom subdomain..." suffix={`.${baseDomain}`} />
+            <TextInput bind:value={name} title={lang.servers.custom.create.nameAndSubdomain.tooltip.name} placeholder={lang.servers.custom.create.nameAndSubdomain.placeholder.name} autofocus={true} />
+            <TextInput bind:value={subdomain} title={lang.servers.custom.create.nameAndSubdomain.tooltip.domain} placeholder={lang.servers.custom.create.nameAndSubdomain.placeholder.subdomain} suffix={`.${baseDomain}`} />
         </div>
         <div class="column" style="gap: 0em;">
             <h1>Icon</h1>
@@ -53,7 +57,6 @@
     }
 
     .title {
-        font-family: 'Press Start 2P', serif;
         font-size: 30px;
         text-align: center;
         margin-bottom: 1em;
@@ -73,7 +76,6 @@
     }
 
     h1 {
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         margin-bottom: 0.8em;
         cursor: default;
@@ -120,7 +122,6 @@
 
     .next-button {
         position: absolute;
-        font-family: 'Press Start 2P', serif;
         font-size: 30px;
         margin-top: 60%;
         margin-left: 82.5%;

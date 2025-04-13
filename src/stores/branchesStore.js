@@ -1,40 +1,64 @@
-import { invoke } from "@tauri-apps/api";
-import { launcherOptions } from "./optionsStore.js";
+import { invoke } from "@tauri-apps/api/core";
+import { launcherOptions, saveOptions } from "./optionsStore.js";
 import { get, writable } from "svelte/store";
 import { defaultUser } from "./credentialsStore.js";
 import { noriskLog } from "../utils/noriskUtils.js";
 
 export const branches = writable([]);
+export const branchSubtitles = writable([]);
 export const currentBranchIndex = writable(0);
 
 export async function fetchBranches() {
   let credentials = get(defaultUser);
   let options = get(launcherOptions);
-  if (!credentials) {
-    branches.set([])
-    return;
-  }
-  if (!options) {
-    branches.set([])
+  if (!credentials || !options) {
+    await invoke("request_norisk_branches_from_cache", {options}).then(result => {
+      const latestBranch = options?.experimentalMode ? options.latestDevBranch : options.latestBranch;
+      result.sort(function(a, b) {
+        if (a.name === latestBranch) {
+          return -1;
+        } else if (b.name === latestBranch) {
+          return 1;
+        } else {
+          return a.name.localeCompare(b.name);
+        }
+      });
+      branches.set(result.map(branch => branch.name));
+      branchSubtitles.set(result.map(branch => branch.subtitle));
+    }).catch((reason) => {
+      branches.set([]);
+      branchSubtitles.set([]);
+      //addNotification(reason);
+    })
+    setBranchIndex()
     return
   }
   await invoke("request_norisk_branches", { options, credentials }).then(result => {
     const latestBranch = options?.experimentalMode ? options.latestDevBranch : options.latestBranch;
     result.sort(function(a, b) {
-      if (a === latestBranch) {
+      if (a.name === latestBranch) {
         return -1;
-      } else if (b === latestBranch) {
+      } else if (b.name === latestBranch) {
         return 1;
       } else {
-        return a.localeCompare(b);
+        return a.name.localeCompare(b.name);
       }
     });
-    branches.set(result);
+    branches.set(result.map(branch => branch.name));
+    branchSubtitles.set(result.map(branch => branch.subtitle));
   }).catch((reason) => {
     branches.set([]);
+    branchSubtitles.set([]);
     //addNotification(reason);
   });
-  noriskLog("Fetches Branches: " + JSON.stringify(get(branches)))
+
+  setBranchIndex()
+}
+
+function setBranchIndex() {
+  let options = get(launcherOptions);
+  noriskLog("Fetches Branches: " + JSON.stringify(get(branches)));
+  noriskLog("Fetches Branches Subtitles: " + JSON.stringify(get(branchSubtitles)));
 
   let latestBranch = options?.experimentalMode ? options?.latestDevBranch : options?.latestBranch;
   let _branches = get(branches);
@@ -46,10 +70,19 @@ export async function fetchBranches() {
     let index = _branches.indexOf(latestBranch);
     if (index !== -1) {
       currentBranchIndex.set(index);
+    } else {
+      currentBranchIndex.set(0);
+      const newBranch = get(branches)[get(currentBranchIndex)];
+      if (get(launcherOptions).experimentalMode) {
+        get(launcherOptions).latestDevBranch = newBranch;
+      } else {
+        get(launcherOptions).latestBranch = newBranch;
+      }
+      saveOptions(false);
     }
   }
 
-  noriskLog("Current Branch: " + get(branches)[get(currentBranchIndex)])
+  noriskLog("Current Branch: " + get(branches)[get(currentBranchIndex)]);
 }
 
 export function switchBranch(isLeft) {
@@ -64,4 +97,12 @@ export function switchBranch(isLeft) {
       return (value + 1) % totalBranches;
     });
   }
+
+  const newBranch = get(branches)[get(currentBranchIndex)];
+  if (get(launcherOptions).experimentalMode) {
+    get(launcherOptions).latestDevBranch = newBranch;
+  } else {
+    get(launcherOptions).latestBranch = newBranch;
+  }
+  saveOptions(false);
 }

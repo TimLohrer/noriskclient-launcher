@@ -1,16 +1,24 @@
 <script>
-  import { invoke } from "@tauri-apps/api/tauri";
+  import { invoke } from "@tauri-apps/api/core";
   import { fade } from "svelte/transition";
-  import { createEventDispatcher } from "svelte";
+  import { createEventDispatcher, onMount } from "svelte";
   import { defaultUser } from "../../stores/credentialsStore.js";
   import { launcherOptions } from "../../stores/optionsStore.js";
-  import { getNoRiskToken } from "../../utils/noriskUtils.js";
+  import { getNoRiskToken, deletedCapesCache, cacheDeletedCape } from "../../utils/noriskUtils.js";
   import { addNotification } from "../../stores/notificationStore.js";
+  import { translations } from '../../utils/translationUtils.js';
+  import { openConfirmPopup } from "../../utils/popupUtils.js";
+    
+  /** @type {{ [key: string]: any }} */
+  $: lang = $translations;
 
   const dispatch = createEventDispatcher();
 
-  export let capes = [];
+  export let apiCapes = [];
+  export let allowDelete = false;
   let visibleCapes = [];
+
+  $: capes = apiCapes.filter(cape => !($deletedCapesCache ?? []).includes(cape._id));
 
   // Der aktuelle Index der Seite für die Iteration
   let currentPage = 0;
@@ -20,6 +28,8 @@
 
   // Funktion, um die aktuellen sichtbaren Elemente zu aktualisieren
   function updateVisibleCapes() {
+    // braucht man evtl nicht, aber zu faul zum testen
+    capes = apiCapes.filter(cape => !($deletedCapesCache ?? []).includes(cape._id))
     if (capes === null) return;
     visibleCapes = [];
 
@@ -46,16 +56,16 @@
     return capes.findIndex(value => value._id === hash);
   }
 
-  let responseData = "";
+  let ownerName = "";
 
   async function getNameByUUID(uuid) {
     await invoke("mc_name_by_uuid", {
       uuid: uuid,
     }).then((user) => {
-      responseData = user ?? "Unknown";
+      ownerName = user ?? "Unknown";
     }).catch(error => {
-      responseData = "Unknown";
-      addNotification("Failed to get name by UUID: " + error);
+      ownerName = "Unknown";
+      addNotification(lang.capes.notification.failedToRequestNameByUUID.replace("{error}", error));
     });
   }
 
@@ -66,10 +76,39 @@
         uuid: $defaultUser.id,
         hash: hash,
       }).then(() => {
-        addNotification("Cape equipped!", "INFO");
+        addNotification(lang.capes.notification.equip.success, "INFO");
         dispatch("fetchNoRiskUser");
       }).catch((error) => {
-        addNotification("Failed to equip cape: " + error);
+        addNotification(lang.capes.notification.equip.error.replace("{error}", error));
+      });
+    }
+  }
+
+  async function handleDeleteCape(hash) {
+    if ($defaultUser) {
+      openConfirmPopup({
+        title: lang.capes.popup.delete.title,
+        content: lang.capes.popup.delete.content,
+        confirmButton: lang.capes.popup.delete.button.confirm,
+        onConfirm: async () => {
+          await invoke("delete_cape", {
+            noriskToken: getNoRiskToken(),
+            uuid: $defaultUser.id,
+            hash: hash,
+          }).then(() => {
+            addNotification(lang.capes.notification.delete.success, "INFO");
+            dispatch("fetchNoRiskUser");
+            cacheDeletedCape(hash);
+            capes = capes.filter(cape => !$deletedCapesCache.includes(cape._id));
+            setTimeout(() => {
+              dispatch("refresh");
+            }, 3 * 60 * 1000);
+            currentPage = 0;
+            updateVisibleCapes();
+          }).catch((error) => {
+            addNotification(lang.capes.notification.delete.error.replace("{error}", error));
+          });
+        },
       });
     }
   }
@@ -80,6 +119,10 @@
 
   // Rufe die initialen sichtbaren Elemente auf
   updateVisibleCapes();
+
+  onMount(() => {
+    capes = apiCapes.filter(cape => !($deletedCapesCache ?? []).includes(cape._id));
+  });
 </script>
 
 
@@ -93,7 +136,7 @@
 
     <div class="cape-slider-wrapper">
       {#if capes.length === 0}
-        <p class="fall-back-text">No capes here D:</p>
+        <p class="fall-back-text">{lang.capes.noCapesHere}</p>
       {/if}
 
       {#each visibleCapes as cape, index (cape._id)}
@@ -104,24 +147,25 @@
             on:mouseenter={() => { cape.hovered = true; return getNameByUUID(cape.firstSeen); }}
             on:mouseleave={() => cape.hovered = false}
           >
-            {#if $launcherOptions.experimentalMode}
-              <!-- svelte-ignore a11y-img-redundant-alt -->
-              <img src={`https://dl-staging.norisk.gg/capes/prod/${cape._id}.png`} alt="Cape Image" class:custom={cape._id.includes("NO_COPY")}>
-            {:else}
-              <!-- svelte-ignore a11y-img-redundant-alt -->
-              <img src={`https://dl.norisk.gg/capes/prod/${cape._id}.png`} alt="Cape Image" class:custom={cape._id.includes("NO_COPY")}>
+            <!-- svelte-ignore a11y-click-events-have-key-events -->
+            <div class="image-click" on:click={() => dispatch("preview", cape._id)}></div>
+            <!-- svelte-ignore a11y-img-redundant-alt -->
+            <img src={`https://cdn.norisk.gg/capes${$launcherOptions.experimentalMode ? '-staging' : ''}/prod/${cape._id}.png`} alt="Cape Image" class:custom={cape._id.includes("NO_COPY")}>
+            {#if allowDelete && cape.firstSeen === $defaultUser.id}
+              <!-- svelte-ignore a11y-click-events-have-key-events -->
+              <div on:click={() => handleDeleteCape(cape._id)} class="delete-text">{lang.capes.cape.button.delete}</div>
             {/if}
             {#if !cape._id.includes("NO_COPY") || cape.firstSeen === $defaultUser.id}
               <!-- svelte-ignore a11y-click-events-have-key-events -->
-              <div on:click={() => handleEquipCape(cape._id)} class="equip-text">EQUIP</div>
+              <div on:click={() => handleEquipCape(cape._id)} class="equip-text">{lang.capes.cape.button.equip}</div>
             {/if}
           </div>
           {#if cape.hovered}
             <div in:fade={{ duration: 300 }} out:fade={{ duration: 300 }} class="info-text">
-              by {responseData}
+              {lang.capes.uploadedBy.replace("{name}", ownerName)}
             </div>
             <div in:fade={{ duration: 300 }} out:fade={{ duration: 300 }} class="info-text-bottom">
-              Used by {cape.uses} players
+              {lang.capes.usedBy.replace("{count}", cape.uses)}
             </div>
           {/if}
         </div>
@@ -137,7 +181,6 @@
 
 <style>
     .button {
-        font-family: 'Press Start 2P', serif;
         font-size: 30px;
         margin-top: 1.5em;
         cursor: pointer;
@@ -176,7 +219,6 @@
     }
 
     .fall-back-text {
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         margin-top: 2em;
         cursor: default;
@@ -185,7 +227,6 @@
     }
 
     .image-wrapper h1 {
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         cursor: default;
     }
@@ -204,8 +245,15 @@
         transform: scale(1.5);
     }
 
-    .crop img {
+    .image-click {
         position: absolute;
+        width: 512px;
+        height: 256px;
+        cursor: pointer;
+    }
+
+    .crop img {
+        position: relative;
         width: 512px;
         height: 256px;
         left: -8px;
@@ -217,18 +265,17 @@
     }
 
     .equip-text {
-        font-family: 'Press Start 2P', serif;
         font-size: 14px;
         text-shadow: 2px 2px #57cc00;
         cursor: pointer;
         position: absolute;
-        bottom: 0.3em;
+        bottom: 0.15em;
         left: 50%;
         outline: 2px solid black;
         background: #7cff00;
         transform: translateX(-50%);
         color: #0a7000;
-        padding: 4px 8px;
+        padding: 4px 3px;
         opacity: 0;
         transition: opacity 0.3s;
     }
@@ -237,27 +284,43 @@
         opacity: 1;
     }
 
+    .delete-text {
+        font-size: 11px;
+        text-shadow: none;
+        cursor: pointer;
+        position: absolute;
+        top: 0.15em;
+        right: 0px;
+        outline: 1.5px solid black;
+        background: #460000;
+        padding: 2px;
+        opacity: 0;
+        transition: opacity 0.3s;
+    }
+
+    .crop:hover .delete-text {
+        opacity: 1;
+    }
+
     .info-text {
         position: absolute;
-        bottom: 5.75em;
+        bottom: 2em;
         left: 50%;
         transform: translateX(-50%);
         padding: 4px 8px;
         opacity: 0;
         transition: opacity 0.3s;
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         text-shadow: 2px 2px #d0d0d0;
         cursor: default;
     }
 
     .info-text-bottom {
-        bottom: 7.5em;
+        bottom: 1.5em;
         left: 50%;
         transform: translateX(-50%);
         position: absolute;
         transition: opacity 0.3s;
-        font-family: 'Press Start 2P', serif;
         font-size: 11px;
         color: white;
         text-shadow: 1.25px 1.25px #d0d0d0;

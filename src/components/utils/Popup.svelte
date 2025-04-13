@@ -1,43 +1,48 @@
 <script>
+	import { translations } from './../../utils/translationUtils.js';
     import { onMount } from 'svelte';
+    import { open } from '@tauri-apps/plugin-shell';
     import { activePopup, closePopup as killPopup } from '../../utils/popupUtils.js';
     import ConfigTextInput from '../config/inputs/ConfigTextInput.svelte';
     import ConfigFolderInput from '../config/inputs/ConfigFolderInput.svelte';
     import ConfigFileInput from '../config/inputs/ConfigFileInput.svelte';
-  
-    let dialog; // HTMLDialogElement
-
+    
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
+    
     let popupTitle = $activePopup?.title ?? null;
-    let popupContent = $activePopup?.content ?? 'Empty!';
+    let popupContent = $activePopup?.content ?? lang.popup.defaultContent;
     let popupType = $activePopup?.type ?? 'INFO';
     let popupInputName = $activePopup?.inputName ?? '';
     let popupInputType = $activePopup?.inputType ?? 'TEXT';
     let popupInputValue = $activePopup?.inputValue ?? '';
     let popupInputPlaceholder = $activePopup?.inputPlaceholder ?? '';
     let onClose = $activePopup?.onClose ?? (() => closePopup());
-    let onCancel = $activePopup?.onCancel ?? (() => closePopup());
+    let onCancel = $activePopup?.onCancel ?? (() => closePopup(true));
     let onConfirm = $activePopup?.onConfirm ?? (() => closePopup());
+    let allowEscape = $activePopup?.allowEscape ?? true;
     let validateInput = $activePopup?.validateInput ?? (() => true);
     let liveValidation = $activePopup?.liveValidation ?? true;
-    let popupConfirmButton = $activePopup?.confirmButton ?? 'Confirm';
-    let popupCloseButton = $activePopup?.cancelButton ?? popupType == "INFO" ? "OK" : popupType == "CONFIRM" || popupType == "INPUT" ? "Cancel" : "Close";
+    // Darf nicht let sein, translation stuff !!?!?!?!
+    $: popupConfirmButton = $activePopup?.confirmButton ?? lang.popup.defaultButtons.confirm;
+    $: popupCloseButton = $activePopup?.cancelButton ?? (popupType == "INFO" ? "OK" : popupType == "CONFIRM" || popupType == "INPUT" ? lang.popup.defaultButtons.cancel : lang.popup.defaultButtons.close);
     
     let popupHeight = $activePopup?.height ?? 22.5;
     let popupWidth = $activePopup?.width ?? 30;
     let popupTitleFontSize = $activePopup?.titleFontSize ?? '22.5px';
     let popupContentFontSize = $activePopup?.contentFontSize ?? '16.5px';
-  
-    $: if (dialog) dialog.showModal();
+
     let animateOutNow = false;
     let isInputValid = (popupType != "INPUT" || popupInputType != "TEXT") || !liveValidation;
 
-    function closePopup() {
+    function closePopup(isExitButton = false) {
         if (popupType == "CONFIRM" || popupType == "INPUT") {
-            onCancel();
-        } else {
+            if (!isExitButton) onCancel();
+            animateOut();
+        } else if (!(popupType == "CONFIRM" || popupType == "INPUT")) {
             onClose();
+            if (allowEscape) animateOut();
         }
-        animateOut();
     }
 
     async function confirmPopup() {
@@ -54,12 +59,20 @@
     function animateOut() {
         animateOutNow = true;
         setTimeout(() => {
-            dialog.close();
             killPopup();
         }, 100);
     }
 
     onMount(() => {
+        const clicks = document.getElementsByClassName("LINK");
+        for (let i = 0; i < clicks.length; i++) {
+            console.log(`Detected click listener for ${clicks[i].attributes.linkTo.value}`);
+            
+            clicks[i].onclick = () => {
+                open(clicks[i].attributes.linkTo.value);
+            };
+        }
+
         if (popupType != "INPUT" || !liveValidation) return;
         document.getElementById("popup-input").addEventListener("input", async (event) => {
             const currentValue = event.target.value;
@@ -73,47 +86,51 @@
 </script>
   
 <!-- svelte-ignore a11y-click-events-have-key-events -->
-<dialog
-    bind:this={dialog}
-    class:animateOut={animateOutNow}
-    class:animateIn={!animateOutNow}
-    style={`height: ${popupHeight}em; width: ${popupWidth}em;`}
-    on:close={closePopup}
-    on:click|self={animateOut}
->
-<div on:click|stopPropagation class="divider">
-    <div class="header-wrapper">
-        <h1 class="nes-font" style={`font-size: ${popupTitleFontSize};`} on:selectstart={preventSelection} on:mousedown={preventSelection}>{popupTitle ?? popupType}</h1>
-        <h1 class="nes-font red-text-clickable close-button" on:click={closePopup}>X</h1>
-    </div>
-    <hr>
-    <div class="popup-content-wrapper">
-        <div class="content-wrapper" style={`height: ${popupHeight - 11}em;`}>
-            <p class="content nes-font" style={`font-size: ${popupContentFontSize};`}>{@html popupContent}</p>
-            {#if popupType == "INPUT"}
-                {#if popupInputType == "TEXT"}
-                    <ConfigTextInput id={"popup-input"} title={popupInputName} bind:value={popupInputValue} placeholder={popupInputPlaceholder} />
-                {:else if popupInputType == "FOLDER"}
-                    <ConfigFolderInput id={"popup-input"} title={popupInputName} bind:value={popupInputValue} />
-                {:else if popupInputType == "FILE"}
-                    <ConfigFileInput id={"popup-input"} title={popupInputName} bind:value={popupInputValue} />
+<div class="overlay" on:click={allowEscape ? animateOut : () => {}}>
+    <div
+        class:animateOut={animateOutNow}
+        class:animateIn={!animateOutNow}
+        class="dialog"
+        style={`height: ${popupHeight}em; width: ${popupWidth}em;`}
+        on:click|self={allowEscape ? animateOut : () => {}}
+    >
+        <div on:click|stopPropagation class="divider">
+            <div class="header-wrapper" class:centerText={!allowEscape}>
+                <h1 class="nes-font" style={`font-size: ${popupTitleFontSize};`} on:selectstart={preventSelection} on:mousedown={preventSelection}>{popupTitle ?? lang.popup.title[popupType.toLowerCase()]}</h1>
+                {#if allowEscape}
+                    <h1 class="nes-font red-text-clickable close-button" on:click={() => closePopup(true)}>X</h1>
                 {/if}
-            {/if}
-        </div>
-        <div class="buttons">
-            <p 
-                class="button nes-font enabled"
-                class:red-text={popupType != "INFO"}
-                class:primary-text={popupType == "INFO"}
-                on:click={closePopup}
-            >{popupCloseButton}</p>
-            {#if popupType == "CONFIRM" || popupType == "INPUT"}
-                <p class="button nes-font green-text" class:disabled={!isInputValid} class:enabled={isInputValid} on:click={() => isInputValid ? confirmPopup() : {}} title={!isInputValid ? "Invalid Input!" : ""}>{popupConfirmButton}</p>
-            {/if}
+            </div>
+            <hr>
+            <div class="popup-content-wrapper">
+                <div class="content-wrapper" style={`height: ${popupHeight - 11}em;`}>
+                    <p class="content nes-font" style={`font-size: ${popupContentFontSize};`}>{@html popupContent}</p>
+                    {#if popupType == "INPUT"}
+                        {#if popupInputType == "TEXT"}
+                            <ConfigTextInput id={"popup-input"} title={popupInputName} bind:value={popupInputValue} placeholder={popupInputPlaceholder} />
+                        {:else if popupInputType == "FOLDER"}
+                            <ConfigFolderInput id={"popup-input"} title={popupInputName} bind:value={popupInputValue} />
+                        {:else if popupInputType == "FILE"}
+                            <ConfigFileInput id={"popup-input"} title={popupInputName} bind:value={popupInputValue} />
+                        {/if}
+                    {/if}
+                </div>
+                <div class="buttons">
+                    <p 
+                        class="button nes-font enabled"
+                        class:red-text={popupType != "INFO"}
+                        class:primary-text={popupType == "INFO"}
+                        on:click={() => closePopup()}
+                    >{popupCloseButton}</p>
+                    {#if popupType == "CONFIRM" || popupType == "INPUT"}
+                        <p class="button nes-font green-text" class:disabled={!isInputValid} class:enabled={isInputValid} on:click={() => isInputValid ? confirmPopup() : {}} title={!isInputValid ? lang.popup.invalidInput : ""}>{popupConfirmButton}</p>
+                    {/if}
+                </div>
+            </div>
         </div>
     </div>
-</dialog>
-  
+</div>
+
 <style>
     .header-wrapper {
         display: flex;
@@ -121,6 +138,10 @@
         justify-content: space-between;
         width: 100%;
         padding: 0.75em 0.25em;
+    }
+
+    .centerText {
+        justify-content: center;
     }
 
     .close-button {
@@ -167,8 +188,16 @@
         height: 100%;
         padding: 1em;
     }
+
+    .overlay {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.2);
+        z-index: 999998;
+    }
     
-    dialog {
+    .dialog {
         background-color: var(--background-color);
         border: 5px solid black;
         border-radius: 0.2em;
@@ -178,25 +207,18 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
+        z-index: 999999;
     }
 
-    dialog::backdrop {
-        background: rgba(0, 0, 0, 0.3);
-    }
-
-    dialog > div {
+    .dialog > div {
         padding: 1em;
     }
 
-    dialog[open]::backdrop {
-        animation: fade 0.2s ease-out;
-    }
-
-    dialog.animateIn {
+    .dialog.animateIn {
         animation: open 0.2s ease-out;
     }
 
-    dialog.animateOut {
+    .dialog.animateOut {
         animation: close 0.2s ease-out;
     }
 
@@ -232,8 +254,7 @@
     }
 
     .nes-font {
-        font-family: 'Press Start 2P', serif;
-        user-select: none;
+            user-select: none;
         cursor: default;
     }
 

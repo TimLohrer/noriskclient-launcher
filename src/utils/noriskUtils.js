@@ -1,49 +1,85 @@
-import { invoke } from "@tauri-apps/api";
+import { invoke } from "@tauri-apps/api/core";
 import { addNotification } from "../stores/notificationStore.js";
 import { get, writable } from "svelte/store";
 import { launcherOptions, saveOptions } from "../stores/optionsStore.js";
 import { pop, push } from "svelte-spa-router";
 import { defaultUser, fetchDefaultUserOrError } from "../stores/credentialsStore.js";
-import { profiles } from "../stores/profilesStore.js";
+import { fetchProfiles, profiles } from "../stores/profilesStore.js";
+import { translations } from "./translationUtils";
+import { fetchBranches } from "../stores/branchesStore.js";
+import { getAnnouncements, getChangeLogs, getLastViewedPopups } from "./popupUtils.js";
+import { startMicrosoftAuth } from "./microsoftUtils.js";
 
+export const version = writable("");
 export const noriskUser = writable(null);
-export const isInMaintenanceMode = writable(null);
-export const isClientRunning = writable(false);
-export const startProgress = writable({
-  progressBarMax: 0,
-  progressBarProgress: 0,
-  progressBarLabel: "",
-});
+export const isInMaintenanceMode = writable(false);
+export const onlinePlayers = writable(null);
+export const isApiOnline = writable(true);
+export const isClientRunning = writable([false, false]);
+export const isCheckingForUpdates = writable(true);
+export const clientInstances = writable([]);
 export const featureWhitelist = writable([]);
 export const customServerProgress = writable({});
 export const forceServer = writable("");
+export const deletedCapesCache = writable([]);
 
-export async function checkApiStatus() {
-  let apiIsOnline = null;
-  await invoke("check_online_status").then((apiOnlineState) => {
-    apiIsOnline = apiOnlineState;
-    noriskLog(`API is ${apiIsOnline ? 'online' : 'offline'}!`);
-  }).catch(() => {
-    apiIsOnline = false;
-    noriskError("API is offline!");
+export const isWinterSeason = ((month = new Date().getMonth()) => {
+  return month === 11 || month === 0 || month === 1;
+})();
+
+export async function getVersion() {
+  await invoke("get_launcher_version").then((v) => {
+    version.set(v);
+    noriskLog("Launcher Version: " + v);
+  }).catch(reason => {
+    addNotification(reason);
+    noriskError(reason);
   });
-  return apiIsOnline;
 }
 
-export async function checkIfClientIsRunning() {
-  await invoke("is_client_running").then((isRunning) => {
-    noriskLog(`IsClientRunning is ${isRunning}`);
-    isClientRunning.set(isRunning)
+export async function checkApiStatus() {
+  return await invoke("check_online_status").then(async (apiOnlineInfo) => {
+    const oldOnlineStatus = get(isApiOnline);
+    isApiOnline.set(apiOnlineInfo.online);
+    onlinePlayers.set(apiOnlineInfo.playerCount);
+    if (oldOnlineStatus !== apiOnlineInfo.online && apiOnlineInfo.online && oldOnlineStatus === false) {
+      const isTokenValid = await getNoRiskUser();
+      if (isTokenValid) {
+        await fetchBranches();
+        await fetchProfiles();
+        await getMaintenanceMode();
+        await getChangeLogs();
+        await getAnnouncements();
+        await getLastViewedPopups();
+      } else {
+        await startMicrosoftAuth();
+      }
+    }
+        //noriskLog(`API is ${apiIsOnline ? "online" : "offline"}!`);
+    }).catch(() => {
+        isApiOnline.set(false);
+        //noriskError("API is offline!");
+    });
+}
+
+export async function getClientInstances() {
+  return await invoke("get_running_instances").then(value => {
+    clientInstances.set(value);
+    //noriskLog(`Received Running Instances: ${JSON.stringify(value)}`);
   }).catch((reason) => {
     noriskError(reason);
   });
 }
 
-
 export async function runClient(branch, checkedForNewBranch = false) {
-  if (get(isClientRunning)) {
-    push('/start-progress');
-    return;
+  let options = get(launcherOptions);
+
+  if (!options.multipleInstances) {
+    let instance = get(clientInstances).find(value => value.branch === branch);
+    if (instance) {
+      await push(`/start-progress/` + instance.id);
+      return;
+    }
   }
 
   if (!checkedForNewBranch) {
@@ -71,7 +107,6 @@ export async function runClient(branch, checkedForNewBranch = false) {
 
   noriskLog("Client started");
 
-  let options = get(launcherOptions);
   let launcherProfiles = get(profiles);
   let installedMods = [];
 
@@ -81,9 +116,7 @@ export async function runClient(branch, checkedForNewBranch = false) {
     options.latestBranch = branch;
   }
 
-  await saveOptions();
-
-  await push("/start-progress");
+  await saveOptions(false);
 
   let launcherProfile;
   if (options.experimentalMode) {
@@ -103,39 +136,49 @@ export async function runClient(branch, checkedForNewBranch = false) {
     });
   });
 
+  // Ensure keep local assets only exists if permission is granted
+  getNoRiskUser();
+
   await invoke("run_client", {
     branch: branch,
     options: options,
     forceServer: get(forceServer).length > 0 ? get(forceServer) : null,
     mods: installedMods,
-    shaders: get(profiles)?.addons[branch]?.shaders ?? [],
-    resourcepacks: get(profiles)?.addons[branch]?.resourcePacks ?? [],
-    datapacks: get(profiles)?.addons[branch]?.datapacks ?? [],
-  }).then(() => {
-    isClientRunning.set(true);
+  }).then((uuid) => {
+    noriskLog(`Started Instance ${uuid}`);
+    //thats not needed anymore as we emit the event beforehand
+    //push("/start-progress/" + uuid);
     if (get(forceServer).length > 0) {
       forceServer.set(get(forceServer) + ":RUNNING");
     }
   }).catch(error => {
-    isClientRunning.set(false);
     forceServer.set("");
     pop();
-    addNotification("Failed to run client: " + error);
+    addNotification(get(translations).app.notification.failedToRunClient.replace("{error}", error));
   });
 
   // NoRisk Token Changed So Update
-  await fetchDefaultUserOrError(false)
+  await fetchDefaultUserOrError(false);
 }
 
-export async function stopClient() {
+export async function stopClient(instanceId) {
   push("/");
-  await invoke("terminate").catch(reason => {
+  await invoke("terminate", {
+    instanceId,
+  }).then(() => {
+  }).catch(reason => {
     addNotification(reason);
   });
 }
 
-export async function openMinecraftLogsWindow() {
-  await invoke("open_minecraft_logs_window").catch(reason => {
+export async function openMinecraftLogsWindow(uuid) {
+  let isLive = get(clientInstances).find(value => value.id === uuid)?.isAttached ?? false
+
+  if (!isLive) {
+    addNotification(get(translations).logs.notification.liveLogsUnavailable.info, "INFO", get(translations).logs.notification.liveLogsUnavailable.details);
+  }
+
+  return await invoke("open_minecraft_logs_window", { uuid, isLive }).catch(reason => {
     addNotification(reason);
   });
 }
@@ -154,6 +197,7 @@ export function getMcToken() {
 export async function getNoRiskUser() {
   const user = get(defaultUser);
   if (!user) return false;
+  if (!get(isApiOnline)) return false;
 
   let isTokenValid = false;
   await invoke("get_norisk_user", {
@@ -202,6 +246,7 @@ export async function getFeatureWhitelist() {
   featureWhitelist.set([]);
   const user = get(defaultUser);
   if (!user) return;
+  if (!get(isApiOnline)) return false;
 
   await invoke("get_full_feature_whitelist", {
     options: get(launcherOptions),
@@ -216,8 +261,9 @@ export async function getFeatureWhitelist() {
 }
 
 export async function getMaintenanceMode() {
+  if (!get(isApiOnline)) return;
   invoke("check_maintenance_mode").then(result => {
-    if (result == true && get(noriskUser)?.isDev && get(isInMaintenanceMode) == null) {
+    if (result === true && get(noriskUser)?.isDev && get(isInMaintenanceMode) == null) {
       addNotification(`Skipped maintenance mode screen because you are a ${get(noriskUser).rank.toLowerCase()}.`, "INFO");
     }
     isInMaintenanceMode.set(result);
@@ -229,4 +275,15 @@ export async function getMaintenanceMode() {
 
 export function setMaintenanceMode(mode) {
   isInMaintenanceMode.set(mode);
+}
+
+export function cacheDeletedCape(hash, ttl = 5 * 60 * 1000) {
+  let cache = get(deletedCapesCache);
+  cache.push(hash);
+  deletedCapesCache.set(cache);
+  setTimeout(() => {
+    let cache = get(deletedCapesCache);
+    cache = cache.filter(item => item !== hash);
+    deletedCapesCache.set(cache);
+  }, ttl);
 }

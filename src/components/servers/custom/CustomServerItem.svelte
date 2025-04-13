@@ -14,6 +14,10 @@
     import SpigotIcon from "../../../images/custom-servers/spigot.png";
     import { customServerLogs } from "../../../stores/customServerLogsStore.js";
     import { launcherOptions } from "../../../stores/optionsStore.js";
+    import { translations } from '../../../utils/translationUtils.js';
+    
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
 
     const dispatch = createEventDispatcher()
 
@@ -81,7 +85,7 @@
     <div class="buttons">
         <!-- svelte-ignore a11y-click-events-have-key-events -->
         <h1 class="details-button primary-text" on:click={() => dispatch("openDetails")}>
-            DETAILS
+            {lang.servers.custom.button.details}
         </h1>
     </div>
 </div>
@@ -142,21 +146,18 @@
     .server-name {
         text-decoration-thickness: 0.1em;
         text-decoration: underline;
-        font-family: 'Press Start 2P', serif;
-        line-break: anywhere;
+            line-break: anywhere;
         font-size: 18px;
     }
 
     .server-item-wrapper p {
         width: 350px;
-        font-family: 'Press Start 2P', serif;
         font-size: 10px;
         line-height: 1.2em;
         padding-top: 2em;
     }
 
     .details-button {
-        font-family: 'Press Start 2P', serif;
         font-size: 17px;
         cursor: pointer;
         transition-duration: 200ms;

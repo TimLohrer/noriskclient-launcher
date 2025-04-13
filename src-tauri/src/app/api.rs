@@ -5,12 +5,11 @@ use chrono::{DateTime, Utc};
 use log::{debug, info};
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
-
+use uuid::Uuid;
 use crate::{HTTP_CLIENT, LAUNCHER_DIRECTORY};
-use crate::app::gui::minecraft_auth_get_default_user;
 use super::app_data::{Announcement, ChangeLog, LauncherOptions};
+use super::gui::{NoRiskBranch, OnlineStatusInfo};
 use crate::custom_servers::models::CustomServer;
-use crate::error::ErrorKind;
 use crate::minecraft::minecraft_auth::NoRiskToken;
 use crate::minecraft::version::AssetObject;
 use crate::utils::get_maven_artifact_path;
@@ -30,33 +29,29 @@ pub fn get_api_base(is_experimental: bool) -> String {
 
 impl ApiEndpoints {
     /// Check API status
-    pub async fn norisk_api_status() -> Result<bool> {
-        let core = Self::request_from_norisk_endpoint("core/online", "", "").await.unwrap_or(false);
-        let launcher = Self::request_from_norisk_endpoint("launcher/online", "", "").await.unwrap_or(false);
-        info!("Core API online state: {}, Launcher API online state: {}", core, launcher);
-        Ok(core && launcher)
+    pub async fn norisk_api_status() -> Result<OnlineStatusInfo> {
+        let core = Self::request_from_norisk_endpoint("core/online", "", "").await.unwrap_or(OnlineStatusInfo {
+            online: false,
+            online_players: 0
+        });
+        Ok(core)
     }
 
     /// Request maintenance mode
     pub async fn get_norisk_user(norisk_token: &str, request_uuid: &str) -> Result<NoRiskUserMinimal> {
         Self::request_from_norisk_endpoint("core/user", norisk_token, request_uuid).await
     }
-    
+
     /// Request maintenance mode
     pub async fn norisk_maintenance_mode() -> Result<bool> {
         Self::request_from_norisk_endpoint("launcher/maintenance-mode", "", "").await
     }
 
     /// Request all available branches
-    pub async fn norisk_branches(norisk_token: &str, request_uuid: &str) -> core::result::Result<Vec<String>, crate::error::Error> {
-        Self::request_from_norisk_endpoint_with_error_handling("launcher/branches", norisk_token, request_uuid).await
-    }
-
-    /// Request all available branches
     pub async fn norisk_full_feature_whitelist(norisk_token: &str, request_uuid: &str) -> Result<Vec<String>> {
         Self::request_from_norisk_endpoint("core/whitelist/features", norisk_token, request_uuid).await
     }
-    
+
     /// Request all available branches
     pub async fn norisk_feature_whitelist(feature: &str, norisk_token: &str, request_uuid: &str) -> Result<bool> {
         Self::request_from_norisk_endpoint(format!("core/whitelist/feature/{}", feature).as_str(), norisk_token, request_uuid).await
@@ -79,6 +74,41 @@ impl ApiEndpoints {
     /// Request featured mods
     pub async fn norisk_featured_mods(branch: &str) -> Result<Vec<String>> {
         Self::request_from_norisk_endpoint(&*format!("launcher/featured/{}/mods", branch), "", "").await
+    }
+
+    pub async fn branches(
+        norisk_token: &str,
+        request_uuid: &str,
+    ) -> core::result::Result<Vec<NoRiskBranch>, crate::error::Error> {
+        Self::request_from_norisk_endpoint_with_error_handling("launcher/branches-v2", norisk_token, request_uuid)
+            .await
+    }
+
+    pub async fn assets(
+        branch: String,
+        norisk_token: &str,
+        request_uuid: &str,
+    ) -> core::result::Result<NoriskAssets, crate::error::Error> {
+        Self::request_from_norisk_endpoint_with_error_handling(
+            &format!("launcher/branch/{}", branch),
+            norisk_token,
+            request_uuid,
+        )
+            .await
+    }
+
+    /// Request launch manifest of specific build
+    pub async fn launch_manifest(
+        branch: &str,
+        norisk_token: &str,
+        uuid: Uuid,
+    ) -> core::result::Result<NoRiskLaunchManifest, crate::error::Error> {
+        Self::request_from_norisk_endpoint_with_error_handling(
+            &format!("launcher/version/launch/{}", branch),
+            norisk_token,
+            &uuid.to_string(),
+        )
+            .await
     }
 
     /// Request featured resourcepacks
@@ -134,8 +164,12 @@ impl ApiEndpoints {
     /**
     In diesem Fall ist es nicht der NoRiskToken sondern der Minecraft Token!!
      */
-    pub async fn refresh_norisk_token(token: &str) -> Result<NoRiskToken> {
-        Self::post_from_norisk_endpoint("launcher/auth/validate", token, "").await
+    pub async fn refresh_norisk_token(token: &str, hwid: &str, force: bool) -> Result<NoRiskToken> {
+        let force_str = force.to_string(); // Erstelle einen String für `force`
+        let mut extra_params = HashMap::new();
+        extra_params.insert("force", force_str.as_str()); // Füge Referenz hinzu
+        extra_params.insert("hwid", hwid);
+        Self::post_from_norisk_endpoint_with_parameters("launcher/auth/validate", token, "", Some(extra_params)).await
     }
 
     /// Check subdomain
@@ -185,19 +219,9 @@ impl ApiEndpoints {
         Self::post_from_await_endpoint("core/auth/await", id).await
     }
 
-    /// Request launch manifest of specific build
-    pub async fn launch_manifest(branch: &str) -> core::result::Result<NoRiskLaunchManifest, crate::error::Error> {
-        Self::request_from_noriskclient_endpoint(&format!("launcher/version/launch/{}", branch)).await
-    }
-
     /// Request download of specified JRE for specific OS and architecture
     pub async fn jre(os_name: &String, os_arch: &String, jre_version: u32) -> Result<JreSource> {
         Self::request_from_norisk_endpoint(&format!("launcher/version/jre/{}/{}/{}", os_name, os_arch, jre_version), "", "").await
-    }
-
-    /// Request norisk assets json for specific branch
-    pub async fn norisk_assets(branch: String, norisk_token: &str, request_uuid: &str) -> Result<NoriskAssets> {
-        Self::request_from_norisk_endpoint(&format!("launcher/assets/{}", branch), norisk_token, request_uuid).await
     }
 
     /// Request changelogs
@@ -294,20 +318,13 @@ impl ApiEndpoints {
     }
 
     /// Request JSON formatted data from launcher API
-    pub async fn request_from_noriskclient_endpoint<T: DeserializeOwned>(endpoint: &str) -> core::result::Result<T, crate::error::Error> {
-        let credentials = minecraft_auth_get_default_user().await?.ok_or(ErrorKind::NoCredentialsError)?;
+    pub async fn request_from_noriskclient_endpoint<T: DeserializeOwned>(endpoint: &str, norisk_token: &str, uuid: Uuid) -> core::result::Result<T, crate::error::Error> {
         let options = LauncherOptions::load(LAUNCHER_DIRECTORY.config_dir()).await.unwrap_or_default();
-        //TODO brauchen wir das wirklich? diesen token also zukünftig
-        let token = if options.experimental_mode {
-            credentials.norisk_credentials.experimental.ok_or(ErrorKind::NoCredentialsError)?
-        } else {
-            credentials.norisk_credentials.production.ok_or(ErrorKind::NoCredentialsError)?
-        };
         let url = format!("{}/{}", get_api_base(options.experimental_mode), endpoint);
         info!("URL: {}", url); // Den formatierten String ausgeben
         Ok(HTTP_CLIENT.get(url)
-            .header("Authorization", format!("Bearer {}", token.value))
-            .query(&[("uuid", credentials.id)])
+            .header("Authorization", format!("Bearer {}", norisk_token))
+            .query(&[("uuid", uuid)])
             .send().await?
             .error_for_status()?
             .json::<T>()
@@ -341,6 +358,37 @@ impl ApiEndpoints {
             .await?
         )
     }
+    pub async fn post_from_norisk_endpoint_with_parameters<T: DeserializeOwned>(
+        endpoint: &str,
+        norisk_token: &str,
+        request_uuid: &str,
+        additional_query_params: Option<HashMap<&str, &str>>,
+    ) -> Result<T> {
+        let options = LauncherOptions::load(LAUNCHER_DIRECTORY.config_dir())
+            .await
+            .unwrap_or_default();
+        let url = format!("{}/{}", get_api_base(options.experimental_mode), endpoint);
+        info!("URL: {}", url);
+
+        // Standard-Query-Parameter einfügen
+        let mut query_params = vec![("uuid", request_uuid)];
+
+        // Zusätzliche Query-Parameter hinzufügen
+        if let Some(params) = additional_query_params {
+            query_params.extend(params.iter().map(|(k, v)| (*k, *v)));
+        }
+
+        Ok(HTTP_CLIENT
+            .post(url)
+            .header("Authorization", format!("Bearer {}", norisk_token))
+            .query(&query_params)
+            .send()
+            .await?
+            .error_for_status()?
+            .json::<T>()
+            .await?)
+    }
+
 
     /// Request JSON formatted data from launcher API
     pub async fn post_from_norisk_endpoint<T: DeserializeOwned>(endpoint: &str, norisk_token: &str, request_uuid: &str) -> Result<T> {
@@ -559,11 +607,8 @@ impl LoginData {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NoRiskBuild {
     pub branch: String,
-    #[serde(rename(serialize = "mcVersion"))]
     pub mc_version: String,
-    #[serde(rename(serialize = "jreVersion"))]
     pub jre_version: u32,
-    #[serde(rename(serialize = "fabricLoaderVersion"))]
     pub fabric_loader_version: String,
 }
 

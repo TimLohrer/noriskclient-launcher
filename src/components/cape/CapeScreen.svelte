@@ -1,16 +1,28 @@
 <script>
-  import { invoke } from "@tauri-apps/api/tauri";
+	import CapePlayer from './CapePlayer.svelte';
+  import { invoke } from "@tauri-apps/api/core";
+  import { createEventDispatcher } from "svelte";
   import CapeCarousel from "./CapeCarousel.svelte";
   import CapeEditor from "./CapeEditor.svelte";
   import { defaultUser } from "../../stores/credentialsStore.js";
   import { launcherOptions } from "../../stores/optionsStore.js";
   import { addNotification } from "../../stores/notificationStore.js";
-  import { noriskLog } from "../../utils/noriskUtils.js";
+  import { openInputPopup } from "../../utils/popupUtils.js";
+  import { getNoRiskToken, noriskLog } from "../../utils/noriskUtils.js";
+  import { translations } from '../../utils/translationUtils.js';
+  /** @type {{ [key: string]: any }} */
+  $: lang = $translations;
+
+  const dispatch = createEventDispatcher();
 
   let capes = null;
+  let userCapes = null;
   let capeHash = null;
   let isLoading = true;
   let currentRequest = 0;
+  let previewHash = null;
+  let previewData = null;
+  let CapeLocation = null;
 
   async function requestTrendingCapes(alltime) {
     if ($defaultUser) {
@@ -28,12 +40,27 @@
     }
   }
 
+  async function requestUserCapes(username) {
+    if ($defaultUser) {
+      await invoke("request_user_capes", {
+        noriskToken: $launcherOptions.experimentalMode ? $defaultUser.norisk_credentials.experimental.value : $defaultUser.norisk_credentials.production.value,
+        uuid: $defaultUser.id,
+        username: username,
+        limit: 30,
+      }).then((result) => {
+        noriskLog("Requesting User capes: " + JSON.stringify(result));
+        capes = result;
+      }).catch(error => {
+        addNotification(error);
+      });
+    }
+  }
+
   async function requestOwnedCapes() {
     if ($defaultUser) {
       await invoke("request_owned_capes", {
         noriskToken: $launcherOptions.experimentalMode ? $defaultUser.norisk_credentials.experimental.value : $defaultUser.norisk_credentials.production.value,
-        uuid: $defaultUser.id,
-        limit: 30,
+        uuid: $defaultUser.id
       }).then((result) => {
         noriskLog("Requesting Owned capes: " + JSON.stringify(result));
         capes = result;
@@ -44,13 +71,27 @@
   }
 
   async function switchTab(tab) {
+    const oldRequest = currentRequest > -1 ? currentRequest : 0;
     currentRequest = tab;
     capes = null;
+    if (currentRequest != 3) {
+      userCapes = null;
+    }
     if (currentRequest === 1) {
       await requestTrendingCapes(1);
     } else if (currentRequest === 2) {
       await requestTrendingCapes(0);
     } else if (currentRequest === 3) {
+      openInputPopup({
+        title: lang.capes.popup.search.title,
+        content: lang.capes.popup.search.content,
+        inputPlaceholder: lang.capes.popup.search.inputPlaceholder,
+        confirmButton: lang.capes.popup.search.confirmButton,
+        validateInput: (value) => value.length >= 3 && value.length <= 16,
+        onConfirm: requestUserCapes,
+        onCancel: () => { switchTab(oldRequest) }
+      });
+    } else if (currentRequest === 4) {
       await requestOwnedCapes();
     }
   }
@@ -61,17 +102,51 @@
         uuid: $defaultUser.id,
       }).then((user) => {
         if (user) {
-          capeHash = user;
+          if(user !== "No Cape Selected") {
+            capeHash = user;
+          }else {
+            capeHash = null;
+          }
         } else {
           noriskLog("No cape found for user: " + $defaultUser.id);
         }
         isLoading = false;
       }).catch(error => {
-        addNotification("Failed to Request User by UUID: " + error);
+        addNotification(lang.capes.notification.failedToRequestUserByUUID.replace("{error}", error));
         isLoading = false;
       });
     }
   }
+  
+  function previewCape(hash, data) {
+    previewHash = hash;
+    previewData = data;
+    isLoading = true;
+
+    // ja das braucht man. nicht hinterfragen. :)
+    setTimeout(() => {
+      currentRequest = -1;
+      isLoading = false;
+    }, 0);
+  }
+
+  async function handleUploadCape() {
+    if ($defaultUser) {
+      await invoke("upload_cape", {
+        noriskToken: getNoRiskToken(),
+        uuid: $defaultUser.id,
+        imagePath: CapeLocation,
+      }).then((text) => {
+        dispatch("fetchNoRiskUser");
+        if (text == "") return;
+        addNotification(text, "INFO");
+        switchTab(0);
+      }).catch(reason => {
+        addNotification(lang.capes.notification.failedToUploadCape, "ERROR", reason);
+      });
+    }
+  }
+  
 
   getNoRiskUserByUUID();
 </script>
@@ -79,22 +154,35 @@
 <div class="wrapper">
   <div class="tab-wrapper">
     <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <h1 on:click={() => switchTab(0)} class:primary-text={currentRequest === 0}>EDITOR</h1>
+    <h1 on:click={() => switchTab(0)} class:primary-text={currentRequest === 0}>{lang.capes.navbar.editor}</h1>
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <div class="button-wrapper">
-      <h2 on:click={() => switchTab(1)} class:primary-text={currentRequest === 1}>ALL TIME</h2>
-      <h2 on:click={() => switchTab(2)} class:primary-text={currentRequest === 2}>WEEKLY</h2>
-      <h2 on:click={() => switchTab(3)} class:primary-text={currentRequest === 3}>OWNED</h2>
+      <h2 on:click={() => switchTab(1)} class:primary-text={currentRequest === 1}>{lang.capes.navbar.alltime}</h2>
+      <h2 on:click={() => switchTab(2)} class:primary-text={currentRequest === 2}>{lang.capes.navbar.weekly}</h2>
+      <h2 on:click={() => switchTab(3)} class:primary-text={currentRequest === 3}>{lang.capes.navbar.search}</h2>
+      <h2 on:click={() => switchTab(4)} class:primary-text={currentRequest === 4}>{lang.capes.navbar.owned}</h2>
     </div>
   </div>
   <div class="cape-wrapper">
-    {#if currentRequest === 0}
-      {#if !isLoading}
-        <CapeEditor on:fetchNoRiskUser={getNoRiskUserByUUID} bind:capeHash />
+    {#if currentRequest === -1}
+      <div class="preview-player">
+        <CapePlayer bind:cape={previewHash} bind:data={previewData} height={350} width={350} />
+      </div>
+      {#if CapeLocation !== null}
+      <div class="button-wrapper">
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <h1 class="red-text-clickable" on:click={()=>switchTab(0)}>{lang.popup.defaultButtons.cancel}</h1>
+        <!-- svelte-ignore a11y-click-events-have-key-events -->
+        <h1 on:click={handleUploadCape}>{lang.popup.defaultButtons.confirm}</h1>
+      </div>
       {/if}
-    {:else}
-      {#if capes != null}
-        <CapeCarousel on:fetchNoRiskUser={getNoRiskUserByUUID} bind:capes />
+    {:else if currentRequest === 0}
+      {#if !isLoading}
+        <CapeEditor bind:previewLocation={CapeLocation} on:fetchNoRiskUser={getNoRiskUserByUUID} on:preview={(data) => previewCape(null, data.detail)} bind:capeHash />
+      {/if}
+    {:else if currentRequest === 1 || currentRequest === 2 || currentRequest === 3 || currentRequest === 4}
+      {#if capes != null && !isLoading}
+        <CapeCarousel on:fetchNoRiskUser={getNoRiskUserByUUID} on:preview={(data) => previewCape(data.detail)} on:refresh={() => requestOwnedCapes()} bind:apiCapes={capes} allowDelete={currentRequest === 4} />
       {/if}
     {/if}
   </div>
@@ -113,10 +201,24 @@
         height: 100%;
     }
 
+    .button-wrapper h1 {
+        padding-inline: 2em;
+        transition: transform 0.3s, color 0.3s;
+    }
+
+    .button-wrapper h1:nth-child(2) {
+        cursor:pointer;
+        color: #1cc009;
+        text-shadow: 2px 2px #114609;
+    }
+
+    .button-wrapper h1:hover {
+        transform: scale(1.5);
+    }
+
     .tab-wrapper h1,
     .tab-wrapper h2 {
-        font-family: 'Press Start 2P', serif;
-        padding: 1em;
+            padding: 1em;
         font-size: 1em;
         transition: transform 0.3s, color 0.3s;
     }
@@ -142,4 +244,13 @@
         display: flex;
         flex-direction: row;
     }
+    
+    .preview-player {
+        height: auto;
+        width: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    
 </style>

@@ -1,5 +1,5 @@
 <script>
-	import { appWindow } from '@tauri-apps/api/window';
+	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
   import { preventSelection } from "../utils/svelteUtils.js";
   import { invoke } from '@tauri-apps/api';
   import { onMount } from "svelte";

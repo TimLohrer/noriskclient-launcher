@@ -1,96 +1,100 @@
 <script>
-  import Modal from "../../account/AccountModal.svelte";
   import SteveSkin from "../../../images/steve_head.png";
+  import FallbackSkin from "/src/images/fallback_skin_head.png";
   import { defaultUser } from "../../../stores/credentialsStore.js";
   import { startMicrosoftAuth } from "../../../utils/microsoftUtils.js";
   import { runClient } from "../../../utils/noriskUtils.js";
   import { branches, currentBranchIndex } from "../../../stores/branchesStore.js";
+  import { onMount } from "svelte";
+  import { invoke } from "@tauri-apps/api/core";
 
-  let showModal = false;
+  let canStart = true;
+  let fallBackUser;
+
+  async function handleStart() {
+    if (!canStart) return;
+    canStart = false;
+    await runClient($branches[$currentBranchIndex]);
+    canStart = true;
+  }
+
+  onMount(async () => {
+    await invoke("minecraft_auth_get_default_user_no_check").then(async value => {
+      fallBackUser = value;
+    }).catch((error) => {
+    });
+  });
 </script>
 
-<Modal bind:showModal></Modal>
-<div class="skin-kopf-container">
-  {#if $defaultUser}
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <img class="skin-kopf"
-         src={`https://crafatar.com/avatars/${$defaultUser.id}?size=150&overlay`}
-         alt="Skin Kopf"
-         on:click={() => { runClient($branches[$currentBranchIndex])}}
+<div class="skin-head-container">
+  <!-- svelte-ignore a11y-click-events-have-key-events -->
+  <div class="skin-click" on:click={($defaultUser || fallBackUser) ? handleStart : startMicrosoftAuth}></div>
+  {#if $defaultUser || fallBackUser}
+    <img class="skin-head"
+         src={`https://crafatar.com/avatars/${$defaultUser?.id ?? fallBackUser?.id}?size=150&overlay`}
+         alt=" "
+         onerror="this.src='{FallbackSkin}'"
     >
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <div on:click={() => (showModal = true)} class="tag">*</div>
   {:else}
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <img class="skin-kopf zoom"
+    <img class="skin-head zoom glow"
          src={SteveSkin}
-         alt="Skin Kopf"
-         on:click={startMicrosoftAuth}
+         alt="Skin Head"
     >
   {/if}
 </div>
 
 <style>
-  .skin-kopf-container {
-    position: relative;
-    transition: transform 0.3s;
-    margin-top: 10px;
-  }
-
-  .skin-kopf {
-    cursor: pointer;
-    -webkit-user-drag: none;
-    box-shadow: 0px 0px 3px 0px rgba(12, 10, 10, 0.75);
-    border-radius: 0.45em;
-    transition-duration: 200ms;
-  }
-
-  .skin-kopf-container:hover {
-    position: relative;
-    transform: scale(1.2);
-  }
-  
-  .skin-kopf-container:hover .skin-kopf {
-    border-radius: 0.25em;
-  }
-
-  .tag {
-    font-family: 'Press Start 2P', serif;
-    font-size: 20px;
-    margin: 0;
-    color: #b7b7b7;
-    text-shadow: 2px 2px #000000;
-    float: right;
-    position: absolute;
-    right: 0px;
-    top: 0px;
-    z-index: 1000;
-    padding: 5px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: transform 0.3s, color 0.25s;
-  }
-
-  .tag:hover {
-    transform: scale(1.2);
-    color: var(--secondary-color);
-  }
-
-  .zoom {
-    cursor: pointer;
-    box-shadow: 0px 0px 3px 0px rgba(12, 10, 10, 0.75);
-    border-radius: 0.2em;
-    animation: zoom 5s ease infinite;
-  }
-  @keyframes zoom {
-    0% {
-      transform: scale(1, 1);
+    .skin-head-container {
+        position: relative;
+        transition: transform 0.3s;
+        margin-top: 10px;
     }
-    50% {
-      transform: scale(0.95, 0.95);
+
+    .skin-head {
+        -webkit-user-drag: none;
+        box-shadow: 0px 0px 3px 0px rgba(12, 10, 10, 0.75);
+        border-radius: 0.45em;
+        transition-duration: 200ms;
     }
-    100% {
-      transform: scale(1, 1);
+
+    .skin-click {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
     }
-  }
+
+    .skin-head-container:hover {
+        position: relative;
+        transform: scale(1.2);
+        cursor: pointer;
+    }
+
+    .skin-head-container:hover .skin-head {
+        border-radius: 0.25em;
+    }
+
+    .zoom {
+        box-shadow: 0px 0px 3px 0px rgba(12, 10, 10, 0.75);
+        border-radius: 0.2em;
+        animation: zoom 5s ease infinite;
+    }
+
+    @keyframes zoom {
+        0% {
+            transform: scale(1, 1);
+        }
+        50% {
+            transform: scale(0.95, 0.95);
+        }
+        100% {
+            transform: scale(1, 1);
+        }
+    }
+
+    .glow {
+        box-shadow: 0 0 15px var(--primary-color);
+    }
+
 </style>

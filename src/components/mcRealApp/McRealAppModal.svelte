@@ -1,23 +1,22 @@
 <script>
-    import { invoke } from "@tauri-apps/api";
+    import { invoke } from "@tauri-apps/api/core";
     import { launcherOptions } from "../../stores/optionsStore.js";
     import { defaultUser } from "../../stores/credentialsStore.js";
     import { getNoRiskToken } from "../../utils/noriskUtils.js";
     import { addNotification } from "../../stores/notificationStore.js";
     // import qrcode from "qrcode-generator";
+    import { translations } from '../../utils/translationUtils.js';
+    
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
   
     export let showModal;
   
-    function hideModal() {
-      showModal = false;
-    }
-  
-    let dialog; // HTMLDialogElement
     let mobileAppToken;
     let codeContent;
     let showQrCode = false;
   
-    $: if (dialog && showModal) dialog.showModal();
+    let animateOutNow = false;
   
     async function getToken() {
       const token = getNoRiskToken();
@@ -29,8 +28,8 @@
         // qr.make();
         // document.getElementById('qrCode').innerHTML = qr.createImgTag();
       }).catch(error => {
-        addNotification("An error occurred while getting the mobile app token: " + error);
-        dialog.close();
+        addNotification(lang.settings.popup.mcRealApp.notification.errorWhileGettingMobileAppToken.replace("{error}", error));
+        animateOut();
       });
     }
     
@@ -44,8 +43,16 @@
         // qr.make();
         // document.getElementById('qrCode').innerHTML = qr.createImgTag();
       }).catch(error => {
-        addNotification("An error occurred while resetting the mobile app token: " + error);
+        addNotification(lang.settings.popup.mcRealApp.notification.errorWhileResettingMobileAppToken.replace("{error}", error));
       });
+    }
+
+    function animateOut() {
+      animateOutNow = true;
+      setTimeout(() => {
+        showModal = false;
+        animateOutNow = false;
+      }, 100);
     }
 
     function preventSelection(event) {
@@ -55,32 +62,36 @@
     getToken();
   </script>
   
-  <!-- svelte-ignore a11y-click-events-have-key-events -->
-  <dialog
-    bind:this={dialog}
-    on:close={hideModal}
-    on:click|self={() => dialog.close()}
+<!-- svelte-ignore a11y-click-events-have-key-events -->
+{#if showModal}
+<div class="overlay" on:click={animateOut}>
+  <div
+    class:animateOut={animateOutNow}
+    class:animateIn={!animateOutNow}
+    class="dialog"
   >
     <div on:click|stopPropagation class="divider">
       <div>
         <div class="header-wrapper">
-          <h1 class="nes-font" on:selectstart={preventSelection} on:mousedown={preventSelection}>MCREAL APP</h1>
-          <h1 class="nes-font red-text-clickable close-button" on:click={hideModal}>X</h1>
+          <h1 class="nes-font" on:selectstart={preventSelection} on:mousedown={preventSelection}>{lang.settings.popup.mcRealApp.title}</h1>
+          <h1 class="nes-font red-text-clickable close-button" on:click={animateOut}>X</h1>
         </div>
         <hr>
         <div class="settings-wrapper">
-          <h4 class="nes-font red-text-clickable warning">Do not share this QR Code with anyone and only scan it with the official McReal App!</h4>
+          <h4 class="nes-font red-text-clickable warning">{lang.settings.popup.mcRealApp.content}</h4>
           <div class="qrCode" id="qrCode"></div>
           {#if codeContent && showQrCode}
             <img class="qrCode" src={`https://qr-generator-putuwaw.vercel.app/api?data=${codeContent}&fill_color=%2300afe8`} alt="">
-            <h4 class="nes-font red-text-clickable warning reset" on:click={() => resetToken()}>Reset QR Code</h4>
+            <h4 class="nes-font red-text-clickable warning reset" on:click={() => resetToken()}>{lang.settings.popup.mcRealApp.button.reset}</h4>
           {:else}
-            <h1 class="nes-font showButton primary-text" on:click={() => showQrCode = true}>Show QR Code</h1>
+            <h1 class="nes-font showButton primary-text" on:click={() => showQrCode = true}>{lang.settings.popup.mcRealApp.button.showQrCode}</h1>
           {/if}
         </div>
       </div>
     </div>
-  </dialog>
+  </div>
+</div>
+{/if}
   
   <style>
       .header-wrapper {
@@ -113,8 +124,16 @@
           height: 100%;
           padding: 1em;
         }
+
+        .overlay {
+          position: fixed;
+          width: 100%;
+          height: 100%;
+          background: rgba(0, 0, 0, 0.2);
+          z-index: 999998;
+        }
         
-        dialog {
+        .dialog {
           background-color: var(--background-color);
           border: 5px solid black;
           width: 30em;
@@ -126,32 +145,54 @@
           top: 50%; /* 50% von oben */
           left: 50%; /* 50% von links */
           transform: translate(-50%, -50%); /* Verschiebung um die Hälfte der eigenen Breite und Höhe */
+          z-index: 999999;
       }
   
-      dialog::backdrop {
-          background: rgba(0, 0, 0, 0.3);
-      }
-  
-      dialog > div {
+      .dialog > div {
           padding: 1em;
       }
-  
-      dialog[open]::backdrop {
-          animation: fade 0.2s ease-out;
-      }
-  
-      @keyframes fade {
-          from {
-              opacity: 0;
-          }
-          to {
-              opacity: 1;
-          }
-      }
+
+    .dialog.animateIn {
+        animation: open 0.2s ease-out;
+    }
+
+    .dialog.animateOut {
+        animation: close 0.2s ease-out;
+    }
+
+    @keyframes fade {
+        from {
+            opacity: 0;
+        }
+        to {
+            opacity: 1;
+        }
+    }
+
+    @keyframes open {
+        from {
+            transform: translate(-50%, 200%);
+            opacity: 0;
+        }
+        to {
+            transform: translate(-50%, -50%);
+            opacity: 1;
+        }
+    }
+
+    @keyframes close {
+        from {
+            transform: translate(-50%, -50%);
+            opacity: 1;
+        }
+        to {
+            transform: translate(-50%, 200%);
+            opacity: 0;
+        }
+    }
   
       .nes-font {
-          font-family: 'Press Start 2P', serif;
-          font-size: 30px;
+            font-size: 30px;
           user-select: none;
           cursor: default;
       }

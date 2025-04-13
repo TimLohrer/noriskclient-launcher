@@ -1,13 +1,19 @@
 <script>
-    import { appWindow } from "@tauri-apps/api/window";
+    import { open } from '@tauri-apps/plugin-shell';
+    import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
     import { openInputPopup } from "../../utils/popupUtils.js";
     import { setMaintenanceMode } from "../../utils/noriskUtils.js";
+    import { translations } from './../../utils/translationUtils.js';
+const appWindow = getCurrentWebviewWindow()
+
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
 
     function openMaintenanceModeTokenPopup() {
         openInputPopup({
-            title: "Maintenance Mode",
-            content: "Please enter the maintenance mode token.",
-            inputPlaceholder: "Your Token...",
+            title: lang.maintenanceMode.popup.title,
+            content: lang.maintenanceMode.popup.content,
+            inputPlaceholder: lang.maintenanceMode.popup.inputPlaceholder,
             validateInput: (input) => input == "bro_wieso_suchst_du_dannach_?_warte_halt_noch_bissl",
             liveValidation: false,
             onConfirm: () => setMaintenanceMode(false),
@@ -19,19 +25,21 @@
 <div class="container">
     <div class="maintenance-mode">
         <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <h1 class="title text primary-text" on:click={openMaintenanceModeTokenPopup}>Maintenance Mode</h1>
-        <p class="text">We are currently in maintenance mode.<br>Please try again later or check or Discord for more information.</p>
+        <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+        <h1 class="title text primary-text" on:click={openMaintenanceModeTokenPopup}>{lang.maintenanceMode.title}</h1>
+        <p class="text">{@html lang.maintenanceMode.text}</p>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <p class="discord" on:click={() => window.open("https://discord.norisk.gg", "_blanc")}>-&gt; Discord</p>
+        <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+        <p class="discord" on:click={() => open("https://discord.norisk.gg")}>-&gt; Discord</p>
         <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <h1 class="quit-button red-text" on:click={() => { appWindow.close(); }}>Exit</h1>
+        <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
+        <h1 class="quit-button red-text" on:click={() => { appWindow.close(); }}>{lang.maintenanceMode.button.exit}</h1>
     </div>
 </div>
 
 <style>
     .text {
-        font-family: 'Press Start 2P', serif;
-        text-align: center;
+            text-align: center;
         width: 95%;
     }
 
@@ -59,7 +67,6 @@
         cursor: pointer;
         color: #7289da;
         text-shadow: 2px 2px #4d5d97;
-        font-family: 'Press Start 2P', serif;
         font-size: 20px;
         margin-top: 20px;
         transition-duration: 200ms;
@@ -72,8 +79,7 @@
     .quit-button {
         cursor: pointer;
         margin-top: 100px;
-        font-family: 'Press Start 2P', serif;
-        text-align: center;
+            text-align: center;
         font-size: 40px;
         cursor: pointer;
         transition-duration: 300ms;

@@ -1,17 +1,19 @@
 <!-- App.svelte -->
 <script>
-	import Announcement from './pages/Announcement.svelte';
-	import ChangeLog from './pages/ChangeLog.svelte';
-	import { setStillRunningCustomServer } from './stores/customServerLogsStore.js';
-  import Router, { location } from "svelte-spa-router";
+  import SnowOverlay from "./components/utils/SnowOverlay.svelte";
+  import Announcement from "./pages/Announcement.svelte";
+  import ChangeLog from "./pages/ChangeLog.svelte";
+  import { setStillRunningCustomServer } from "./stores/customServerLogsStore.js";
+  import Router, { location, push } from "svelte-spa-router";
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api/tauri";
-  import { isInMaintenanceMode, isClientRunning, noriskUser, checkApiStatus, noriskError } from "./utils/noriskUtils.js";
+  import { invoke } from "@tauri-apps/api/core";
+  import { setLanguage, language, translations } from "./utils/translationUtils.js";
+  import { isInMaintenanceMode, noriskError, noriskUser, isApiOnline, isWinterSeason } from "./utils/noriskUtils.js";
   import { addNotification } from "./stores/notificationStore.js";
-  import { activePopup } from "./utils/popupUtils.js";
+  import { activePopup, openConfirmPopup } from "./utils/popupUtils.js";
+  import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import Home from "./pages/Home.svelte";
   import Notifications from "./components/notification/Notifications.svelte";
-  import MinecraftStartProgress from "./pages/MinecraftStartProgress.svelte";
   import LauncherSettings from "./pages/LauncherSettings.svelte";
   import Capes from "./pages/Capes.svelte";
   import BackButton from "./components/v2/buttons/BackButton.svelte";
@@ -22,7 +24,6 @@
   import Shaders from "./pages/Shaders.svelte";
   import Resourcepacks from "./pages/Resourcepacks.svelte";
   import Datapacks from "./pages/Datapacks.svelte";
-  import GameButton from "./components/v2/buttons/GameButton.svelte";
   import Servers from "./pages/Servers.svelte";
   import CustomServerDetails from "./pages/CustomServerDetails.svelte";
   import CreateCustomServer from "./pages/CreateCustomServer.svelte";
@@ -30,11 +31,16 @@
   import FirstInstall from "./pages/FirstInstall.svelte";
   import CopyMcDataProgress from "./pages/CopyMcDataProgress.svelte";
   import Legal from "./pages/Legal.svelte";
+  import InstanceProgress from "./components/instances/InstanceProgress.svelte";
   import MaintenanceMode from "./components/maintenance-mode/MaintenanceModeScreen.svelte";
-  import ApiOfflineScreen from "./components/maintenance-mode/ApiOfflineScreen.svelte";
   import { listen } from "@tauri-apps/api/event";
   import LaunchErrorModal from "./components/home/widgets/LaunchErrorModal.svelte";
   import Popup from "./components/utils/Popup.svelte";
+  import InstancesHotbar from "./components/instances/InstancesHotbar.svelte";
+const appWindow = getCurrentWebviewWindow()
+
+  /** @type {{ [key: string]: any }} */
+  $: lang = $translations;
 
   const routes = {
     "/": Home,
@@ -44,7 +50,7 @@
     "/first-install": FirstInstall,
     "/new-branch": NewBranch,
     "/copy-mc-data-progress": CopyMcDataProgress,
-    "/start-progress": MinecraftStartProgress,
+    "/start-progress/:id": InstanceProgress,
     "/launcher-settings": LauncherSettings,
     "/capes": Capes,
     "/profiles": Profiles,
@@ -59,12 +65,17 @@
     "/addons/shaders": Shaders,
   };
 
-  let apiIsOnline = null;
   let showLaunchErrorModal = false;
   let launchErrorReason;
 
   onMount(async () => {
-    apiIsOnline = await checkApiStatus();
+    invoke("check_privacy_policy").then(value => {
+      if (value) return;
+      openPrivacyPolicyPopup();
+    }).catch(error => {
+      noriskError("Failed to check privacy policy: " + error);
+      appWindow.close();
+    });
 
     const clientLaunchError = await listen("client-error", async (event) => {
       let reason = event.payload; // Extract the path from the event's payload
@@ -74,7 +85,12 @@
       }
       noriskError(reason);
       showLaunchErrorModal = true;
-      launchErrorReason = reason
+      launchErrorReason = reason;
+    });
+
+    const openStartProgress = await listen("open-start-progress", async (event) => {
+      let uuid = event.payload; // Extract the path from the event's payload
+      await push("/start-progress/" + uuid);
     });
 
     invoke("check_if_custom_server_running").then((value) => {
@@ -86,73 +102,113 @@
 
     return () => {
       clientLaunchError();
+      openStartProgress();
     };
   });
 
   // Event Handler
   function handleRouteEvent(event) {
-    console.log('Route Event:', event.detail);
+    console.log("Route Event:", event.detail);
   }
 
   function handleConditionsFailed(event) {
-    console.log('Conditions Failed:', event.detail);
+    console.log("Conditions Failed:", event.detail);
   }
 
   function handleRouteLoading(event) {
-    console.log('Route Loading:', event.detail);
+    console.log("Route Loading:", event.detail);
   }
 
   function handleRouteLoaded(event) {
     //wir delayen es weil mein gehirn ein delay hat ganz groß
     setTimeout(() => {
-      const elements = document.querySelectorAll('#transition-wrapper');
+      const elements = document.querySelectorAll("#transition-wrapper");
       //Yep ihr seht richtig anstatt das problem an der wurzel zu bekämpfen mache ich ihn hier
       //aber es ballert so böse ich weiß nicht warum es passiert und deswegen jo
       //und ja das window moved trotzdem noch bisschen aber wird dann gecleared....
       //alter alter
-      console.log("Elements: ", elements)
+      console.log("Elements: ", elements);
       if (elements.length > 1) {
-        let element = elements[0]
-        const inlineStyles = element.getAttribute('style');
+        let element = elements[0];
+        const inlineStyles = element.getAttribute("style");
         //if (inlineStyles.includes("animation: 300ms linear 0ms 1 normal both running")) {
-        elements[0].remove()
+        elements[0].remove();
         //}
       }
-      console.log('Route Loaded:', event.detail);
-    },300)
+      console.log("Route Loaded:", event.detail);
+    }, 300);
+  }
+
+  function openPrivacyPolicyPopup() {
+    openConfirmPopup({
+      title: lang.privacyPolicy.title,
+      content: lang.privacyPolicy.text,
+      confirmButton: lang.privacyPolicy.button.accept,
+      cancelButton: lang.privacyPolicy.button.exit,
+      allowEscape: false,
+      onConfirm: acceptPrivacyPolicy,
+      onCancel: () => appWindow.close(),
+      width: "35",
+      height: "25",
+    });
+  }
+
+  async function acceptPrivacyPolicy() {
+    await invoke("accept_privacy_policy").then(async () => {
+      await invoke("check_privacy_policy").then(value => {
+        if (!value) {
+          addNotification("Failed to accept privacy policy!");
+          openPrivacyPolicyPopup();
+          return;
+        }
+      });
+    }).catch(error => {
+      addNotification(error);
+      openPrivacyPolicyPopup();
+    });
   }
 </script>
 
-<div class="black-bar" data-tauri-drag-region></div>
-<div class="content">
-  {#if showLaunchErrorModal}
-    <LaunchErrorModal bind:showModal={showLaunchErrorModal} bind:reason={launchErrorReason}/>
+<div class="black-bar" data-tauri-drag-region>
+  {#if $isApiOnline === false}
+    <h1 class="offline-button red-text-clickable">OFFLINE</h1>
   {/if}
-  {#if apiIsOnline === false}
-    <ApiOfflineScreen />
-  {:else if apiIsOnline === true}
-    <Notifications />
-    {#if $activePopup != null}
-      <Popup />
-    {/if}
-    {#if $isInMaintenanceMode === true && !$noriskUser?.isDev}
-      <MaintenanceMode />
-    {:else if $isInMaintenanceMode === false || $noriskUser?.isDev}
-      <Router {routes}
-              on:routeEvent={handleRouteEvent}
-              on:conditionsFailed={handleConditionsFailed}
-              on:routeLoading={handleRouteLoading}
-              on:routeLoaded={handleRouteLoaded}
-      />
-    {/if}
+</div>
+<div class="snow">
+  {#if isWinterSeason}
+    <SnowOverlay />
+  {/if}
+</div>
+<div class="content">
+  <LaunchErrorModal bind:showModal={showLaunchErrorModal} bind:reason={launchErrorReason} />
+  <Notifications />
+  {#if $activePopup != null}
+    <Popup />
+  {/if}
+  {#if $isInMaintenanceMode === true && !$noriskUser?.isDev}
+    <MaintenanceMode />
+  {:else if $isInMaintenanceMode === false || $noriskUser?.isDev}
+    <Router {routes}
+            on:routeEvent={handleRouteEvent}
+            on:conditionsFailed={handleConditionsFailed}
+            on:routeLoading={handleRouteLoading}
+            on:routeLoaded={handleRouteLoaded}
+    />
   {/if}
 </div>
 <div class="black-bar" data-tauri-drag-region>
   <!-- Bisschen unschön wenn man da in Zukunft noch mehr machen will... aber das ist ein Problem für die Zukunft YOOYOYOYOYOYOJOJOJO-->
-  {#if $location !== "/" && $location !== "/announcement" && (!$isInMaintenanceMode || $noriskUser?.isDev) && apiIsOnline === true}
+  {#if $location !== "/" && $location !== "/privacy-policy" && $location !== "/announcement" && (!$isInMaintenanceMode || $noriskUser?.isDev)}
     <BackButton />
-  {:else if $isClientRunning}
-    <GameButton />
+  {:else if $location == "/privacy-policy"}
+    <div class="lang-switcher">
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <p class:active={$language == "de_DE"} on:click={() => setLanguage("de_DE")}>[Deutsch]</p>
+      <!-- svelte-ignore a11y-click-events-have-key-events -->
+      <p class:active={$language == "en_US"} on:click={() => setLanguage("en_US")}>[English]</p>
+    </div>
+  {:else}
+    <InstancesHotbar />
   {/if}
 </div>
 
@@ -167,7 +223,50 @@
         background-color: #151515;
     }
 
-    .content {
+    .offline-button {
+        transition: transform 0.3s;
+        position: absolute;
+        font-size: 20px;
+        text-shadow: 2px 2px #7a7777;
+        cursor: pointer;
+    }
+
+    .offline-button:hover {
+        transform: scale(1.2);
+    }
+
+    .lang-switcher {
+        display: flex;
+        flex-direction: row;
+    }
+
+    .lang-switcher p {
+        font-size: 15px;
+        margin-left: 1em;
+        margin-right: 1em;
+        cursor: pointer;
+        transition-duration: 300ms;
+    }
+
+    .lang-switcher p:hover {
+        transform: scale(1.2);
+    }
+
+    .lang-switcher p.active {
+        color: var(--primary-color);
+        text-shadow: 2px 2px var(--primary-color-text-shadow);
+    }
+
+    .snow {
+        position: absolute;
         height: 80vh;
+        width: 100%;
+        z-index: 2;
+    }
+
+    .content {
+        position: relative;
+        height: 80vh;
+        z-index: 10;
     }
 </style>

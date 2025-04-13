@@ -1,21 +1,25 @@
 <script>
+	import { translations } from './../../../utils/translationUtils.js';
   import { defaultUser } from "../../../stores/credentialsStore.js";
   import { onMount } from "svelte";
   import { openDiscordIntegration } from "../../../utils/discordUtils.js";
   import { get } from "svelte/store";
   import { branches } from "../../../stores/branchesStore.js";
   import { launcherOptions } from "../../../stores/optionsStore.js";
-  import { invoke } from "@tauri-apps/api";
-  import { noriskLog } from "../../../utils/noriskUtils.js";
+  import { invoke } from "@tauri-apps/api/core";
+    import {isApiOnline, noriskLog} from "../../../utils/noriskUtils.js";
   import { addNotification } from "../../../stores/notificationStore.js";
 
   let discordLinked = false;
   let navItems = [];
 
+  /** @type {{ [key: string]: any }} */
+  $: lang = $translations;
+
   function updateNavItems() {
     navItems = [
       {
-        name: discordLinked ? "UNLINK DISCORD" : "LINK DISCORD",
+        name: discordLinked ? lang.home.leftNavbar.button.unlinkDiscord : lang.home.leftNavbar.button.linkDiscord,
         onClick: async () => {
           if (discordLinked) {
             await unlinkDiscord();
@@ -53,6 +57,7 @@
     let options = get(launcherOptions);
     if (!credentials) return false;
     if (!options) return false;
+    if (!get(isApiOnline)) return false;
     return await invoke("discord_auth_status", { options, credentials })
       .then((value) => {
         discordLinked = value;
@@ -74,7 +79,7 @@
     return await invoke("discord_auth_unlink", { options, credentials })
       .then((value) => {
         discordLinked = false;
-        addNotification("Discord unlinked successfully!", "INFO");
+        addNotification(lang.home.notification.discordUnlinkSuccess, "INFO");
         noriskLog("Unlinked Discord" + discordLinked);
       })
       .catch((error) => {
@@ -120,7 +125,6 @@
 
   .home-navbar-wrapper h1 {
     font-size: 11px;
-    font-family: 'Press Start 2P', serif;
     margin-bottom: 1em;
     cursor: pointer;
     color: var(--secondary-color);

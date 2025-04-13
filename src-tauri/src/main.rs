@@ -1,7 +1,7 @@
 // #![feature(exit_status_error)] - wait for feature to be stable
 #![cfg_attr(
-all(not(debug_assertions), target_os = "windows"),
-windows_subsystem = "windows"
+    all(not(debug_assertions), target_os = "windows"),
+    windows_subsystem = "windows"
 )]
 
 use std::fs;
@@ -20,9 +20,11 @@ use log4rs::{
 };
 use once_cell::sync::Lazy;
 use reqwest::Client;
+use crate::utils::{get_architecture, is_rosetta};
 
 pub mod app;
 pub mod minecraft;
+pub mod addons;
 pub mod custom_servers;
 
 mod error;
@@ -37,9 +39,9 @@ static LAUNCHER_DIRECTORY: Lazy<ProjectDirs> = Lazy::new(|| {
 });
 
 static APP_USER_AGENT: &str = concat!(
-    env!("CARGO_PKG_NAME"),
-    "/",
-    env!("CARGO_PKG_VERSION"),
+env!("CARGO_PKG_NAME"),
+"/",
+env!("CARGO_PKG_VERSION"),
 );
 
 /// HTTP Client with launcher agent
@@ -57,9 +59,10 @@ const TRIGGER_FILE_SIZE: u64 = 2 * 1024 * 1000;
 /// Number of archive log files to keep
 const LOG_FILE_COUNT: u32 = 10;
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn main() -> anyhow::Result<()> {
     // Path fix
-    let _ = fix_path_env::fix();
+    // let _ = fix_path_env::fix();
 
     let log_folder = LAUNCHER_DIRECTORY.data_dir().join("logs");
     let latest_log = log_folder.join("latest.log");
@@ -119,11 +122,15 @@ pub fn main() -> anyhow::Result<()> {
     info!("###############################");
     info!("");
 
+    info!("Rosetta: {}", is_rosetta());
+    info!("Architecture: {}", get_architecture().get_simple_name()?.to_string());
+
 
     // application directory
     info!("Creating launcher directories...");
     fs::create_dir_all(LAUNCHER_DIRECTORY.data_dir())?;
     fs::create_dir_all(LAUNCHER_DIRECTORY.config_dir())?;
+    fs::create_dir_all(LAUNCHER_DIRECTORY.data_dir().join("nrc_cache"))?;
     info!("Finish launcher directories...");
 
     // app

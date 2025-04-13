@@ -45,7 +45,34 @@ impl CapeApiEndpoints {
         };
     }
 
-    pub async fn upload_cape(token: &str, uuid: &str, image_path: PathBuf) -> Result<String, String> {
+    pub async fn delete_cape(token: &str, uuid: &str, hash: &str) -> Result<(), String> {
+        let options = LauncherOptions::load(LAUNCHER_DIRECTORY.config_dir()).await.unwrap_or_default();
+
+        // Baue die URL mit dem Token als Query-Parameter
+        let url = format!("{}/cosmetics/cape/{}?uuid={}", get_api_base(options.experimental_mode), hash, uuid);
+
+        // Sende den POST-Request
+        let response = HTTP_CLIENT
+            .delete(&url)
+            .header("Authorization", format!("Bearer {}", token))
+            .send()
+            .await
+            .map_err(|err| format!("Fehler beim Senden des Requests: {}", err))?;
+
+        debug!("Cape delete status {:?}",response.status());
+
+        return match response.status() {
+            StatusCode::OK => Ok(()),
+            _ => {
+                let response_text = response.text().await.map_err(|err| {
+                    format!("Error reading the request: {}", err)
+                })?;
+                Err(response_text)
+            }
+        };
+    }
+
+    pub async fn upload_cape(token: &str, uuid: &str, image_path: &PathBuf) -> Result<String, String> {
         debug!("Image Path {:?}",image_path);
         let options = LauncherOptions::load(LAUNCHER_DIRECTORY.config_dir()).await.unwrap_or_default();
         // Lese den Inhalt der Bilddatei in Bytes ein
@@ -56,7 +83,7 @@ impl CapeApiEndpoints {
 
                 // Baue die URL mit dem Token als Query-Parameter
                 let url = format!("{}/cosmetics/cape?uuid={}", get_api_base(options.experimental_mode), uuid);
-
+                
                 // Sende den POST-Request
                 let response = HTTP_CLIENT
                     .post(&url)
@@ -68,23 +95,10 @@ impl CapeApiEndpoints {
 
                 debug!("Cape upload status {:?}",response.status());
 
-                return match response.status() {
-                    StatusCode::CREATED => {
-                        Ok("Your cape was applied instantly because it was already accepted before.".to_string())
-                    }
-                    StatusCode::OK => {
-                        let response_text = response.text().await.map_err(|err| {
-                            format!("Error reading the request: {}", err)
-                        })?;
-                        Ok(response_text)
-                    }
-                    _ => {
-                        let response_text = response.text().await.map_err(|err| {
-                            format!("Error reading the request: {}", err)
-                        })?;
-                        Err(response_text)
-                    }
-                };
+                let response_text = response.text().await.map_err(|err| {
+                    format!("Error reading cape upload response text: {}", err)
+                })?;
+                Ok(response_text)
             }
             Err(_err) => {
                 Err("Error Selecting Cape".parse().unwrap())
@@ -94,10 +108,19 @@ impl CapeApiEndpoints {
 
     pub async fn mc_name_by_uuid(uuid: &str) -> Result<String, Box<dyn Error>> {
         debug!("Requesting Minecraft Username {}",uuid);
-        let url = format!("  https://sessionserver.mojang.com/session/minecraft/profile/{}", uuid);
+        let url = format!("https://sessionserver.mojang.com/session/minecraft/profile/{}", uuid);
         let response = HTTP_CLIENT.get(url).send().await?;
         let response_text = response.json::<McProfile>().await?;
         Ok(response_text.name)
+    }
+
+    pub async fn mc_uuid_by_name(username: &str) -> Result<String, Box<dyn Error>> {
+        debug!("Requesting Minecraft UUID {}",username);
+        let url = format!("https://api.mojang.com/users/profiles/minecraft/{}", username);
+        let response = HTTP_CLIENT.get(url).send().await?;
+        let response_text = response.json::<McProfile>().await?;
+        let uuid = uuid::Uuid::parse_str(&response_text.id)?;
+        Ok(uuid.to_string())
     }
 
     pub async fn cape_hash_by_uuid(uuid: &str) -> Result<String, Box<dyn Error>> {
@@ -109,10 +132,10 @@ impl CapeApiEndpoints {
         Ok(response_text)
     }
 
-    pub async fn delete_cape(norisk_token: &str, uuid: &str) -> Result<(), String> {
+    pub async fn unequip_cape(norisk_token: &str, uuid: &str) -> Result<(), String> {
         // Baue die URL mit dem Token als Query-Parameter
         let options = LauncherOptions::load(LAUNCHER_DIRECTORY.config_dir()).await.unwrap_or_default();
-        let url = format!("{}/cosmetics/cape?uuid={}", get_api_base(options.experimental_mode), uuid);
+        let url = format!("{}/cosmetics/cape/unequip?uuid={}", get_api_base(options.experimental_mode), uuid);
 
         // Sende den POST-Request
         let response = HTTP_CLIENT
@@ -120,9 +143,9 @@ impl CapeApiEndpoints {
             .header("Authorization", format!("Bearer {}", norisk_token))
             .send()
             .await
-            .map_err(|err| format!("Fehler beim Senden des Requests: {}", err))?;
+            .map_err(|err| format!("Error while sending the request: {}", err))?;
 
-        debug!("Delete cape status {:?}",response.status());
+        debug!("Unequip cape status {:?}",response.status());
 
         return match response.status() {
             StatusCode::OK => {
@@ -149,10 +172,23 @@ impl CapeApiEndpoints {
             .json::<Vec<Cape>>().await?)
     }
 
-    pub async fn request_owned_capes(norisk_token: &str, uuid: &str, limit: u32) -> Result<Vec<Cape>, Box<dyn Error>> {
+    pub async fn request_user_capes(norisk_token: &str, uuid: &str, username: &str) -> Result<Vec<Cape>, Box<dyn Error>> {
+        debug!("Requesting User Capes of {}...", username);
+        let target_uuid = Self::mc_uuid_by_name(username).await?;
+        let options = LauncherOptions::load(LAUNCHER_DIRECTORY.config_dir()).await.unwrap_or_default();
+        let url = format!("{}/cosmetics/cape/user/{}?uuid={}", get_api_base(options.experimental_mode), target_uuid, uuid);
+        Ok(HTTP_CLIENT
+            .get(url)
+            .header("Authorization", format!("Bearer {}", norisk_token))
+            .send().await?
+            .error_for_status()?
+            .json::<Vec<Cape>>().await?)
+    }
+
+    pub async fn request_owned_capes(norisk_token: &str, uuid: &str) -> Result<Vec<Cape>, Box<dyn Error>> {
         debug!("Requesting Owned Capes...");
         let options = LauncherOptions::load(LAUNCHER_DIRECTORY.config_dir()).await.unwrap_or_default();
-        let url = format!("{}/cosmetics/cape/owned?uuid={}&limit={}", get_api_base(options.experimental_mode), uuid, limit);
+        let url = format!("{}/cosmetics/cape/owned?uuid={}&limit=250", get_api_base(options.experimental_mode), uuid);
         Ok(HTTP_CLIENT
             .get(url)
             .header("Authorization", format!("Bearer {}", norisk_token))
@@ -213,6 +249,7 @@ impl CapeApiEndpoints {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct McProfile {
+    pub id: String,
     pub name: String,
 }
 

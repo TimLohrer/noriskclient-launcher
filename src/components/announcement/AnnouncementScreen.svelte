@@ -1,5 +1,9 @@
 <script>
 	import { activeAnnouncement, openNextAnnouncement } from '../../utils/popupUtils.js';
+    import { translations } from '../../utils/translationUtils.js';
+    
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
 
     function close() {
         openNextAnnouncement();
@@ -11,11 +15,11 @@
         <h1 class="title">{$activeAnnouncement?.title}</h1>
         <h2 class="author">By {$activeAnnouncement?.author} - {$activeAnnouncement?.date}</h2>
         <div class="content">
-            <p class="text">{$activeAnnouncement?.content}</p>
+            <p class="text">{@html $activeAnnouncement?.content}</p>
         </div>
     </div>
     <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <p class="closeButton" on:click={close}>Okay</p>
+    <p class="closeButton" on:click={close}>{lang.announcement.button.okay}</p>
 </div>
 
 <style>
@@ -27,8 +31,7 @@
         margin-top: 20px;
         height: 90%;
         overflow-y: hidden;
-        font-family: 'Press Start 2P', serif;
-    }
+        }
 
     .announcement {
         display: flex;
@@ -54,9 +57,11 @@
         display: flex;
         margin-top: 2em;
         margin-bottom: 10px;
-        height: 50vh;
+        height: 50vh;    
         justify-content: center;
         align-items: center;
+        text-align: center;
+        line-height: 1.5em;
     }
 
     .text {
@@ -69,8 +74,7 @@
         font-size: 1.75em;
         color: var(--primary-color);
         text-shadow: 2px 2px var(--primary-color-text-shadow);
-        font-family: 'Press Start 2P', serif;
-        cursor: pointer;
+            cursor: pointer;
     }
 
     .closeButton:hover {

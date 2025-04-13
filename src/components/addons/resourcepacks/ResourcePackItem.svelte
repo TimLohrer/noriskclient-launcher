@@ -1,20 +1,46 @@
 <script>
+	import { listen } from '@tauri-apps/api/event';
     import {createEventDispatcher} from "svelte";
+    import FallbackIcon from "/src/images/modrinth.png";
+    import { translations } from '../../../utils/translationUtils.js';
+    
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
 
     const dispatch = createEventDispatcher()
 
     export let resourcePack;
     export let text;
     export let type;
+
+    let downloadProgress = null;
+
+    listen('addons-progress', event => {
+        if (event.payload.identifier == resourcePack.slug) {
+            downloadProgress = {
+                current: event.payload.current,
+                max: event.payload.max
+            };
+            
+        }
+    });
+
+    function getMinimalisticDownloadCount() {
+        if (resourcePack?.downloads < 1000) {
+            return resourcePack?.downloads;
+        } else if (resourcePack?.downloads < 1000000) {
+            return lang.addons.global.item.downloadCount.thousand.replace("{count}", (resourcePack?.downloads / 1000).toFixed(1));
+        } else {
+            return lang.addons.global.item.downloadCount.million.replace("{count}", (resourcePack?.downloads / 1000000).toFixed(1));
+        }
+    }
 </script>
 
 <div class="resourcepack-item-wrapper" class:blacklisted={resourcePack?.blacklisted}>
     <div class="image-text-wrapper">
         <!-- svelte-ignore a11y-img-redundant-alt -->
         {#if type != 'CUSTOM'}
-            <div class="icon-fallback">
-                <img class="icon" src={resourcePack.icon_url} alt=" " onerror="this.style.display='none'">
-            </div>
+            <img class="icon" src={resourcePack.icon_url} alt=" " onerror="this.src='{FallbackIcon}'">
         {:else}
             <div class="custom-resourcepack-icon">🎨</div>
         {/if}
@@ -34,8 +60,11 @@
                     <a class="resourcepack-title">{resourcePack.replace('.jar', '').replace('.disabled', '')}</a>
                 {/if}
                 {#if resourcePack?.author != undefined && resourcePack?.author != null}
-                    <!-- svelte-ignore a11y-click-events-have-key-events -->
-                    <p class="author">by {resourcePack.author ?? resourcePack.value.author}</p>
+                    <div class="author-container">
+                        <p class="author">{lang.addons.global.item.madeBy.replace("{author}", resourcePack.author ?? resourcePack.value.author)}</p>
+                        <b>•</b>
+                        <p class="download-count">{getMinimalisticDownloadCount()}</p>
+                    </div>
                 {/if}
             </div>
             {#if resourcePack?.description != undefined && resourcePack?.description != null}
@@ -45,24 +74,25 @@
     </div>
     <div class="buttons">
         {#if resourcePack?.loading ?? false}
-            <h1 class="required-button primary-text">
-                LOADING
+            <h1 class="progress-text primary-text">
+                <p class="label primary-text">{lang.addons.global.item.downloading}</p>
+                {downloadProgress == null ? '0' : ((downloadProgress.current / downloadProgress.max) * 100).toFixed(0)}%
             </h1>
         {:else if text === "INSTALL"}
         {#if resourcePack?.featured}
             <div style="display: flex; flex-direction: column; align-items: center;">
                 <h1 class="featured-label" style="margin-bottom: 15px;">
-                    FEATURED
+                    {lang.addons.global.item.featured}
                 </h1>
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
                 <h1 class="install-button green-text" on:click={() => dispatch("install")}>
-                    INSTALL
+                    {lang.addons.global.item.button.install}
                 </h1>
             </div>
         {:else}
             <!-- svelte-ignore a11y-click-events-have-key-events -->
             <h1 class="install-button green-text" on:click={() => dispatch("install")}>
-                INSTALL
+                {lang.addons.global.item.button.install}
             </h1>
         {/if}
         {:else if text === "INSTALLED"}
@@ -70,18 +100,18 @@
                 <div style="display: flex; flex-direction: column; align-items: center;">
                     {#if resourcePack?.featured}
                         <h1 class="featured-label" style="margin-bottom: 15px;">
-                            FEATURED
+                            {lang.addons.global.item.featured}
                         </h1>
                     {/if}
                     <!-- svelte-ignore a11y-click-events-have-key-events -->
                     <h1 class="red-text-clickable delete-button" style={type != "RESULT" ? "margin-top: 15px;" : ""} on:click={() => dispatch("delete")}>
-                        DELETE
+                        {lang.addons.global.item.button.delete}
                     </h1>
                 </div>
             {:else}
                 <!-- svelte-ignore a11y-click-events-have-key-events -->
                 <h1 class="red-text-clickable delete-button" style={type != "RESULT" ? "margin-top: 15px;" : ""} on:click={() => dispatch("delete")}>
-                    DELETE
+                    {lang.addons.global.item.button.delete}
                 </h1>
             {/if}
         {/if}
@@ -136,20 +166,17 @@
     .href-wrapper {
         display: flex;
         flex-direction: column;
-        align-items: start;
+        align-items: flex-start;
+        justify-content: center;
+        color: var(--font-color);
+        gap: 0.3em;
     }
 
     .href-wrapper .name-div {
         display: flex;
         flex-direction: row;
-        gap: 0.5em;
-    }
-
-    .href-wrapper .author {
-        white-space: nowrap;
-        font-family: 'Press Start 2P', serif;
-        font-size: 9px;
-        margin-top: 1em;
+        align-items: center;
+        gap: 0.3em;
     }
 
     .text-item-wrapper {
@@ -169,20 +196,10 @@
         -webkit-user-drag: none;
     }
 
-    .icon-fallback {
-        background-image: url("https://docs.modrinth.com/img/logo.svg");
-        min-width: 90px; 
-        min-height: 90px;
-        background-position: center center;
-        background-size: 90%;
-        background-repeat: no-repeat;
-    }
-
     .resourcepack-title {
         text-decoration-thickness: 0.1em;
         text-decoration: underline;
-        font-family: 'Press Start 2P', serif;
-        line-break: anywhere;
+            line-break: anywhere;
         font-size: 16px;
         cursor: pointer;
         -webkit-user-drag: none;
@@ -193,8 +210,27 @@
         padding-bottom: 10px;
     }
 
+    .author-container {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 0.65em;
+        margin-top: 0.3em;
+    }
+
+    .author-container .author {
+        white-space: nowrap;
+        font-size: 9px;
+        text-shadow: 1.5px 1.5px var(--font-color-text-shadow);
+    }
+
+    .author-container .download-count {
+        font-size: 9px;
+        text-shadow: 1.5px 1.5px var(--font-color-text-shadow);
+    }
+
     .description {
-        font-family: 'Press Start 2P', serif;
         font-size: 9px;
         line-height: 1.2em;
         padding-top: 2em;
@@ -203,28 +239,32 @@
     }
 
     .install-button {
-        font-family: 'Press Start 2P', serif;
         font-size: 17px;
         cursor: pointer;
         transition: transform 0.3s;
     }
 
-    .required-button {
-        font-family: 'Press Start 2P', serif;
-        font-size: 17px;
+    .progress-text {
+        display: flex;
+        flex-direction: column;
+        font-size: 16px;
+        gap: 1em;
+        text-align: center;
         cursor: default;
     }
 
+    .progress-text .label {
+        font-size: 12px;
+    }
+
     .featured-label {
-        font-family: 'Press Start 2P', serif;
         font-size: 17px;
         color: #f0c91a;
-        text-shadow: 1.5px 1.5px var(--hover-color-text-shadow);
+        text-shadow: 1.5px 1.5px #9e8704;
         cursor: default;
     }
 
     .delete-button {
-        font-family: 'Press Start 2P', serif;
         font-size: 17px;
         cursor: pointer;
         transition: transform 0.3s;

@@ -2,7 +2,7 @@ use std::{path::PathBuf, sync::{Arc, Mutex}};
 
 use anyhow::{Ok, Result};
 use log::{debug, error, info};
-use tauri::Window;
+use tauri::{WebviewWindow, Window, Emitter};
 use tokio::{fs, process::Child};
 
 use crate::{app::{api::ApiEndpoints, app_data::LauncherOptions, gui::get_options}, custom_servers::{models::{CustomServerEventPayload, CustomServerTokenResponse}, providers::forwarding_manager::ForwardingManagerProvider}, minecraft::{java::{find_java_binary, jre_downloader, JavaRuntime}, progress::ProgressUpdate}, LAUNCHER_DIRECTORY};
@@ -103,7 +103,7 @@ impl CustomServerManager {
         Ok(running_task)
     }
 
-    pub async fn read_and_process_server_log_file(window: &Arc<Mutex<Window>>, server_id: &str) -> Result<()> {
+    pub async fn read_and_process_server_log_file(window: &Arc<Mutex<WebviewWindow>>, server_id: &str) -> Result<()> {
         let path = LAUNCHER_DIRECTORY.data_dir().join("custom_servers").join(server_id).join("logs").join("latest.log");
         let content = fs::read_to_string(&path).await.map_err(|e| format!("Failed to read log file: {}", e)).unwrap();
         let lines: Vec<String> = content.lines().collect::<Vec<&str>>().iter().map(|line| line.to_string()).collect();
@@ -169,7 +169,7 @@ impl CustomServerManager {
             return Ok(()); // ignore empty lines
         }
     
-        info!("{}", data);
+        info!("{}", data.trim());
         window.lock().unwrap().emit("custom-server-process-output", CustomServerEventPayload { server_id: server_id.to_owned(), data: data })?;
         Ok(())
     }
@@ -180,7 +180,7 @@ impl CustomServerManager {
             return Ok(()); // ignore empty lines
         }
     
-        error!("{}", data);
+        error!("{}", data.trim());
         window.lock().unwrap().emit("custom-server-process-output", CustomServerEventPayload { server_id: server_id.to_owned(), data: data })?;
         Ok(())
     }

@@ -1,4 +1,5 @@
 <script>
+	import { translations } from './../../utils/translationUtils.js';
   import { fade } from "svelte/transition";
   import { noriskError, noriskWarning, noriskLog } from "../../utils/noriskUtils.js";
   import { openErrorPopup, openInfoPopup } from "../../utils/popupUtils.js";
@@ -9,17 +10,20 @@
   export let message = "";
   export let details = null;
 
+  /** @type {{ [key: string]: any }} */
+  $: lang = $translations;
+
   function open() {
     if (!$notifications.find(n => n.id == id)) { return; }
     if (type === "ERROR") {
       noriskError(message);
-      openErrorPopup({ title: "Error", content: details ?? message, contentFontSize: message.length > 100 ? "12.5px" : "15px", onClose: () => removeNotification(id) });
+      openErrorPopup({ title: lang.notification.error.title, content: details ?? message, contentFontSize: message.length > 100 ? "12.5px" : "15px", onClose: () => removeNotification(id) });
     } else if (type === "WARNING") {
       noriskWarning(message);
-      openErrorPopup({ title: "Warning", content: details ?? message, closeButton: "OK", onClose: () => removeNotification(id) });
+      openErrorPopup({ title: lang.notification.warning.title, content: details ?? message, closeButton: "OK", onClose: () => removeNotification(id) });
     } else {
       noriskLog(message);
-      openInfoPopup({ title: "Info", content: details ?? message, onClose: () => removeNotification(id) });
+      openInfoPopup({ title: lang.notification.info.title, content: details ?? message, onClose: () => removeNotification(id) });
     }
     removeNotification(id);
   }
@@ -27,7 +31,6 @@
 
 <style>
     .notification {
-        font-family: 'Press Start 2P', serif;
         font-size: 14px;
         padding: 16px;
         margin: 8px 0;
@@ -56,5 +59,5 @@
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
 <div class="notification" class:error={type == "ERROR"} class:info={type == "INFO"} class:warning={type == "WARNING"} id={id} on:click={open} transition:fade>
-  {type == "ERROR" ? "An error occured, click for more information." : type == "WARNING" ? "Warning! Please click for more details!" : message}
+  {type == "ERROR" ? lang.notification.error.defaultText : type == "WARNING" ? lang.notification.warning.defaultText : message}
 </div>

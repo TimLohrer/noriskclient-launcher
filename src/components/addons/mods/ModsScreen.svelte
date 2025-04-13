@@ -1,6 +1,6 @@
 <script>
-  import { invoke } from "@tauri-apps/api";
-  import { open } from "@tauri-apps/api/dialog";
+  import { invoke } from "@tauri-apps/api/core";
+  import { open } from "@tauri-apps/plugin-dialog";
   import ModrinthSearchBar from "../widgets/ModrinthSearchBar.svelte";
   import ModItem from "./ModItem.svelte";
   import { tick, onMount } from "svelte";
@@ -11,6 +11,10 @@
   import { defaultUser } from "../../../stores/credentialsStore.js";
   import { addNotification } from "../../../stores/notificationStore.js";
   import { getNoRiskToken, noriskUser, noriskLog } from "../../../utils/noriskUtils.js";
+  import { translations } from '../../../utils/translationUtils.js';
+
+  /** @type {{ [key: string]: any }} */
+  $: lang = $translations;
 
   export let isServersideInstallation = false;
 
@@ -23,9 +27,11 @@
   let mods = [];
   let featuredMods = [];
   let blacklistedMods = [];
+  let modVersions = {};
   let launchManifest = null;
   let searchterm = "";
   let filterterm = "";
+  let showMoreButton = false;
   let currentTabIndex = 0;
   let listScroll = 0;
 
@@ -33,44 +39,8 @@
   let search_limit = 30;
   let search_index = "relevance";
 
-  let filterCategories = [
-    {
-      type: "Environments",
-      entries: [
-        { id: "client_side", name: "Client" },
-        { id: "server_side", name: "Server" },
-      ],
-    },
-    {
-      type: "Categories",
-      entries: [
-        { id: "adventure", name: "Adventure" },
-        { id: "cursed", name: "Cursed" },
-        { id: "decoration", name: "Decoration" },
-        { id: "economy", name: "Economy" },
-        { id: "equipment", name: "Equipment" },
-        { id: "food", name: "Food" },
-        { id: "game-mechanics", name: "Game Mechanics" },
-        { id: "library", name: "Library" },
-        { id: "magic", name: "Magic" },
-        { id: "management", name: "Management" },
-        { id: "minigame", name: "Minigame" },
-        { id: "mobs", name: "Mobs" },
-        { id: "optimization", name: "Optimization" },
-        { id: "social", name: "Social" },
-        { id: "storage", name: "Storage" },
-        { id: "technology", name: "Technology" },
-        { id: "transportation", name: "Transportation" },
-        { id: "utility", name: "Utility" },
-        { id: "worldgen", name: "Worldgen" },
-      ],
-    },
-  ];
+  let filterCategories = [];
   let filters = {};
-
-  if (!isServersideInstallation) {
-    filterCategories.shift();
-  }
 
   $: loginData = $defaultUser;
 
@@ -86,13 +56,13 @@
 
     let todo = new Set();
     files.payload.forEach(l => todo.add(l));
-    
+
     installCustomMods(todo);
   });
 
   // check if an element exists in array using a comparer function
   // comparer : function(currentElement)
-  Array.prototype.inArray = function(comparer) {
+  Array.prototype.includes = function(comparer) {
     for (let i = 0; i < this.length; i++) {
       if (comparer(this[i])) return true;
     }
@@ -102,27 +72,36 @@
   // adds an element to the array if it does not already exist using a comparer
   // function
   Array.prototype.pushIfNotExist = function(element, comparer) {
-    if (!this.inArray(comparer)) {
+    if (!this.includes(comparer)) {
       this.push(element);
     }
   };
 
   async function updateMods(newMods) {
     mods = newMods;
-    if (document.getElementById('scrollList') != null) {
+
+    // Try to scroll to the previous position
+    try {
       await tick();
       document.getElementById('scrollList').scrollTop = listScroll ?? 0;
-      await tick();
-    }
+    } catch(_) {}
   }
 
   async function updateProfileMods(newMods) {
     launcherProfile.mods = newMods;
-    if (document.getElementById('scrollList') != null) {
+
+    // Try to scroll to the previous position
+    try {
       await tick();
       document.getElementById('scrollList').scrollTop = listScroll ?? 0;
-      await tick();
-    }
+    } catch(_) {}
+  }
+
+  function scrollToBottom() {
+    // Try to scroll to the bottom
+    try {
+      document.getElementById('scrollList').scrollTop = document.getElementById('scrollList').scrollHeight;
+    } catch (_) {}
   }
 
   async function getLaunchManifest() {
@@ -150,7 +129,7 @@
   async function getCustomModsFilenames() {
     await invoke("get_custom_mods_filenames", {
       options: options,
-      profileName: launcherProfile.name
+      profileId: launcherProfile.id
     }).then((fileNames) => {
       console.debug("Custom Mods", fileNames);
       customModFiles = fileNames;
@@ -159,17 +138,37 @@
     });
   }
 
-  async function installModAndDependencies(mod) {
+  async function getModVersions(slug) {
+    if (modVersions[slug]) {
+      return modVersions[slug];
+    }
+
+    await invoke("get_project_versions", {
+      slug: slug,
+      params: `?game_versions=["${launchManifest.build.mc_version}"]&loaders=["fabric"]`,
+    }).then(async (result) => {
+      modVersions[slug] = result;
+      console.debug(`Project Versions of ${slug}`, modVersions[slug]);
+    }).catch((error) => {
+      addNotification(error);
+      modVersions[slug] = [];
+    });
+
+    return modVersions[slug];
+  }
+
+  async function installModAndDependencies(mod, version) {
     mod.loading = true;
     updateMods(mods);
     await invoke("install_mod_and_dependencies", {
       slug: mod.slug,
-      params: `?game_versions=["${launchManifest.build.mcVersion}"]&loaders=["fabric"]`,
+      version: version,
+      params: `?game_versions=["${launchManifest.build.mc_version}"]&loaders=["fabric"]`,
       requiredMods: launchManifest.mods,
     }).then((result) => {
       const blockedDependencies = result.dependencies.filter(d => blacklistedMods.some(slug => slug == d.value.source.artifact.split(":")[1]))
       if (blockedDependencies.length > 0) {
-        addNotification(`Failed to install mod because of incompatible dependencies:<br><br>${blockedDependencies.map(d => d.value.name).join(', ')}`, "ERROR", null, 5000);
+        addNotification(lang.addons.mods.notification.failedToInstallDueToDependencies.replace("{dependencies}", blockedDependencies.map(d => d.value.name).join(', ')), "ERROR", null, 5000);
         return;
       }
 
@@ -180,6 +179,41 @@
       mod.loading = false;
       updateMods(mods);
       updateProfileMods(launcherProfile.mods);
+      launcherProfiles.store();
+    }).catch((error) => {
+      addNotification(error);
+    });
+  }
+
+  async function changeModVersion(slug, version) {
+    let mod = launcherProfile.mods.find(mod => mod.value.source.artifact.split(":")[1].toUpperCase() === slug.toUpperCase());
+    if (!mod) {
+      addNotification(lang.addons.mods.notification.failedToChangeVersion.notInstalled.replace("{slug}", slug));
+      return;
+    }
+
+    await invoke("install_mod_and_dependencies", {
+      slug: slug,
+      version: version,
+      params: `?game_versions=["${launchManifest.build.mc_version}"]&loaders=["fabric"]`,
+      requiredMods: launchManifest.mods,
+    }).then(async (result) => {
+      const blockedDependencies = result.dependencies.filter(d => blacklistedMods.some(slug => slug == d.value.source.artifact.split(":")[1]))
+      if (blockedDependencies.length > 0) {
+        addNotification(lang.addons.mods.notification.failedToChangeVersion.incompatibleDependencies.replace("{dependencies}", blockedDependencies.map(d => d.value.name).join(', ')), "ERROR", null, 5000);
+        return;
+      }
+
+      const original = mod;
+      // Replace with new version info
+      mod.value = result.value;
+      mod.dependencies = result.dependencies;
+      launcherProfile.mods.splice(launcherProfile.mods.indexOf(original), 1, mod);
+
+      const before = launcherProfile.mods;
+      updateProfileMods([]);
+      await tick();
+      updateProfileMods(before);
       launcherProfiles.store();
     }).catch((error) => {
       addNotification(error);
@@ -197,10 +231,10 @@
       ).required) {
         return "REQUIRED";
       } else {
-        return "RECOMENDED";
+        return "RECOMMENDED";
       }
     }
-    
+
     if (!launcherProfile.mods.some((mod) => {
       return mod.value.source.artifact.split(":")[1].toUpperCase() === slug.toUpperCase();
     }) && launcherProfile.mods.some((mod) => mod.dependencies.some((dependency) => dependency.value.source.artifact.split(':')[1].toUpperCase() == slug.toUpperCase()))) {
@@ -218,19 +252,19 @@
   async function getBaseMods() {
     await invoke("get_featured_mods", {
       branch: currentBranch,
-      mcVersion: launchManifest.build.mcVersion,
+      mcVersion: launchManifest.build.mc_version,
     }).then((result) => {
       console.debug("Featured Mods", result);
       result.forEach(mod => mod.featured = true);
       baseMods = result;
       featuredMods = result;
       launchManifest.mods.forEach(async mod => {
-        if (!mod.required) {
+        if (!mod.required && mod.source.repository == "modrinth") {
           const slug = mod.source.artifact.split(":")[1];
           let author;
-          let iconUrl = "src/images/norisk_logo.png";
-          let description = "A custom NoRiskClient Mod.";
-          if (mod.source.repository !== "norisk" && mod.source.repository !== "CUSTOM") {
+          let iconUrl = "";
+          let description = "";
+          if (mod.source.repository == "modrinth") {
             await invoke("get_mod_info", { slug }).then(info => {
               author = info.author ?? null;
               iconUrl = info.icon_url;
@@ -250,22 +284,72 @@
         }
       });
       console.log("Base Mods", baseMods);
-      
+
     }).catch((error) => {
       addNotification(error);
     });
   }
 
   async function searchMods() {
+    let oldMods = mods;
+
     if (searchterm == "" && search_offset === 0) {
       if (baseMods == null) {
         await getBaseMods();
       }
-      updateMods(baseMods);
-    } else {
-      // WENN WIR DAS NICHT MACHEN BUGGEN LIST ENTRIES INEINANDER, ICH SCHLAGE IRGENDWANN DEN TYP DER DIESE VIRTUAL LIST GEMACHT HAT
-      // Update: Ich habe ne eigene Virtual List gemacht 📉
-      updateMods([]);
+      oldMods = baseMods;
+    }
+    
+
+    // WENN WIR DAS NICHT MACHEN BUGGEN LIST ENTRIES INEINANDER, ICH SCHLAGE IRGENDWANN DEN TYP DER DIESE VIRTUAL LIST GEMACHT HAT
+    // Update: Ich habe ne eigene Virtual List gemacht 📉
+    updateMods([]);
+
+    if (filters['norisk']?.enabled) {
+      await tick();
+      let newMods = [];
+      await Promise.all(launchManifest.mods.filter(m => m.name.toLowerCase().includes(searchterm.toLowerCase())).map(async mod => {
+        const slug = mod.source.artifact.split(":")[1];
+        const domain = mod.source.artifact.split(":")[0];
+        let modData = {
+          title: mod.name,
+          slug: slug,
+          author: domain,
+          blacklisted: false,
+          description: "",
+          downloads: null,
+          featured: false,
+          icon_url: "",
+          source: mod.source,
+        };
+        if (mod.source.artifact.split(':')[0].includes("norisk")) {
+          modData.author = "NoRiskClient";
+          modData.icon_url = "src/images/norisk_logo.png";
+        } else {
+          try {
+            await invoke("get_mod_info", { slug }).then(async info => {
+              if (info.author == null) {
+                await invoke("get_mod_author", { slug }).then(author => {
+                  modData.author = author ?? lang.addons.mods.unknownAuthor;
+                })
+              } else {
+                modData.author = info.author;
+              }
+
+              modData.title = info.title;
+              modData.icon_url = info.icon_url;
+              modData.description = info.description;
+              modData.downloads = info.downloads;
+            });
+          } catch (e) {
+            // ignore in this case
+          }
+        }
+        newMods.push(modData);
+      }));
+
+      console.log(newMods);
+      return updateMods(newMods);
     }
 
     let client_server_side_filters = "";
@@ -283,17 +367,20 @@
 
     const notEnvironmentFilter = (filter) => filter.id !== "client_side" && filter.id !== "server_side";
 
+    noriskLog(`Searching for mods with searchterm: ${searchterm} | Limit: ${search_limit} | Offset: ${search_offset} | Filters: ${Object.values(filters).filter(f => f.enabled).map(f => f.id).join(", ")}`);
     await invoke("search_mods", {
       params: {
-        facets: `[["versions:${launchManifest.build.mcVersion}"], ["project_type:mod"], ["categories:fabric"]${Object.values(filters).filter(filter => filter.enabled && notEnvironmentFilter(filter)).length > 0 ? ", " : ""}${Object.values(filters).filter(filter => filter.enabled && notEnvironmentFilter(filter)).map(filter => `["categories:'${filter.id}'"]`).join(", ")}${client_server_side_filters}]`,
+        facets: `[["versions:${launchManifest.build.mc_version}"], ["project_type:mod"], ["categories:fabric"]${Object.values(filters).filter(filter => filter.enabled && notEnvironmentFilter(filter)).length > 0 ? ", " : ""}${Object.values(filters).filter(filter => filter.enabled && notEnvironmentFilter(filter)).map(filter => `["categories:'${filter.id}'"]`).join(", ")}${client_server_side_filters}]`,
         index: search_index,
-        limit: search_limit + (searchterm === "" ? launchManifest.mods.length : 0),
+        limit: search_limit,
         offset: search_offset,
-        query: searchterm,
+        query: searchterm.trim(),
       },
     }).then((result) => {
       console.debug("Search Mod Result", result);
-      
+
+      showMoreButton = result.hits.length >= search_limit;
+
       if (!$noriskUser?.isDev) {
         console.debug("Filtering blacklisted mods...");
         const length = result.hits.length;
@@ -306,11 +393,11 @@
       });
       if (result.hits.length === 0) {
         updateMods(null);
-      } else if ((search_offset == 0 && searchterm != "") || Object.values(filters).length > 0) {
-        updateMods(result.hits);;
+      } else if ((search_offset == 0 && searchterm != "") || (Object.values(filters).length > 0 && search_offset == 0)) {
+        updateMods(result.hits);
       } else {
-        updateMods([...mods, ...result.hits.filter(mod => searchterm != "" || (!launchManifest.mods.some((launchManifestMod) => {
-          return launchManifestMod.source.artifact.split(":")[1].toUpperCase() === mod.slug.toUpperCase();
+        updateMods([...(oldMods ?? []), ...result.hits.filter(mod => searchterm != "" || (!launchManifest.mods.some((launchManifestMod) => {
+          return launchManifestMod.source.artifact.split(":")[1].toUpperCase() === mod.slug.toUpperCase() && !launchManifestMod.source.repository.includes('norisk');
         }) && !featuredMods.some((featuredMod) => {
           return featuredMod.slug.toUpperCase() === mod.slug.toUpperCase();
         })))]);
@@ -321,7 +408,7 @@
   }
 
   function loadMore() {
-    search_offset += search_limit + (searchterm === "" ? launchManifest.mods.length : 0);
+    search_offset += search_limit;
     searchMods();
   }
 
@@ -340,12 +427,18 @@
     let index = launcherProfile.mods.findIndex((element) => {
       return element.value.source.artifact.split(":")[isCustom ? 2 : 1].toUpperCase() === slug.toUpperCase();
     });
-    
+
     if (index !== -1) {
       launcherProfile.mods.splice(index, 1);
-      updateMods(mods);
-      updateProfileMods(launcherProfile.mods);
       launcherProfiles.store();
+
+      // Fragt nicht, sonst squashen mod item names ineinander?????
+      const prev = [mods, launcherProfile.mods];
+      updateMods([]);
+      updateProfileMods([]);
+      await tick();
+      updateMods(prev[0]);
+      updateProfileMods(prev[1]);
     }
   }
 
@@ -389,7 +482,7 @@
   async function deleteCustomModFile(fileName) {
     await invoke("delete_custom_mod_file", {
       options: options,
-      profileName: launcherProfile.name,
+      profileId: launcherProfile.id,
       file: fileName,
     }).then(() => {
       customModFiles.splice(customModFiles.indexOf(fileName), 1);
@@ -404,13 +497,13 @@
       const locations = await open({
         defaultPath: "/",
         multiple: true,
-        filters: [{ name: "Custom Mods", extensions: ["jar"] }],
+        filters: [{ name: lang.addons.mods.selectCustomModFileExtentionFilterName, extensions: ["jar"] }],
       });
       if (locations instanceof Array) {
         installCustomMods(locations);
       }
     } catch (error) {
-      addNotification("Failed to select file using dialog: " + error);
+      addNotification(lang.addons.mods.notification.failedToSelectCustomMods.replace("{error}", error));
     }
   }
 
@@ -425,19 +518,19 @@
       const fileName = location.split(splitter)[location.split(splitter).length - 1];
 
       if (!fileName.endsWith(".jar")) {
-        addNotification(`Cannot install ${fileName}!<br><br>Only .jar files are supported.`);
+        addNotification(lang.addons.mods.notification.invalidCustomModFileExtention.replace("{fileName}", fileName));
         return;
       }
 
       if (customModFiles.includes(fileName)) {
-        addNotification(`Cannot install ${fileName}!<br><br>Mod already exists.`);
+        addNotification(lang.addons.mods.notification.customModFileAlreadyExists.replace("{fileName}", fileName));
         return;
       }
 
       noriskLog(`Installing custom Mod ${fileName}`);
-      await invoke("save_custom_mods_to_folder", {
+      await invoke("save_custom_mod_to_folder", {
         options: options,
-        profileName: launcherProfile.name,
+        profileId: launcherProfile.id,
         file: { name: fileName, location: location },
       }).then(() => {
         launcherProfile.mods.push({
@@ -450,7 +543,7 @@
             source: {
               type: "repository",
               repository: "CUSTOM",
-              artifact: `CUSTOM:${launcherProfile.name}:${fileName}`,
+              artifact: `CUSTOM:${launcherProfile.id}:${fileName}`,
               url: "",
             },
           },
@@ -494,6 +587,51 @@
   }
 
   onMount(() => {
+    filterCategories = [
+      {
+        type: lang.addons.mods.filters.environments.title,
+        entries: [
+          { id: "client_side", name: lang.addons.mods.filters.environments.client },
+          { id: "server_side", name: lang.addons.mods.filters.environments.server },
+        ],
+      },
+      {
+        type: lang.addons.mods.filters.noriskclient.title,
+        entries: [
+          { id: "norisk", name: lang.addons.mods.filters.noriskclient.mods },
+        ]
+      },
+      {
+        type: lang.addons.mods.filters.categories.title,
+        entries: [
+          { id: "adventure", name: lang.addons.mods.filters.categories.adventure },
+          { id: "cursed", name: lang.addons.mods.filters.categories.cursed },
+          { id: "decoration", name: lang.addons.mods.filters.categories.decoration },
+          { id: "economy", name: lang.addons.mods.filters.categories.economy },
+          { id: "equipment", name: lang.addons.mods.filters.categories.equipment },
+          { id: "food", name: lang.addons.mods.filters.categories.food },
+          { id: "game-mechanics", name: lang.addons.mods.filters.categories.gameMechanics },
+          { id: "library", name: lang.addons.mods.filters.categories.library },
+          { id: "magic", name: lang.addons.mods.filters.categories.magic },
+          { id: "management", name: lang.addons.mods.filters.categories.management },
+          { id: "minigame", name: lang.addons.mods.filters.categories.minigame },
+          { id: "mobs", name: lang.addons.mods.filters.categories.mobs },
+          { id: "optimization", name: lang.addons.mods.filters.categories.optimization },
+          { id: "social", name: lang.addons.mods.filters.categories.social },
+          { id: "storage", name: lang.addons.mods.filters.categories.storage },
+          { id: "technology", name: lang.addons.mods.filters.categories.technology },
+          { id: "transportation", name: lang.addons.mods.filters.categories.transportation },
+          { id: "utility", name: lang.addons.mods.filters.categories.utility },
+          { id: "worldgen", name: lang.addons.mods.filters.categories.worldgen },
+        ],
+      },
+    ];
+    if (!isServersideInstallation) {
+      filterCategories.shift();
+    } else {
+      filterCategories = filterCategories.filter(category => category.type !== lang.addons.mods.filters.noriskclient.title);
+    }
+
     load();
   });
 </script>
@@ -501,45 +639,53 @@
 <div class="modrinth-wrapper">
   <div class="navbar">
     <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <h1 class:primary-text={currentTabIndex === 0} on:click={() => {currentTabIndex = 0, listScroll = 0}}>Discover</h1>
+    <h1 class:primary-text={currentTabIndex === 0} on:click={() => {currentTabIndex = 0, listScroll = 0}}>{lang.addons.global.navbar.discover}</h1>
     <h2>|</h2>
     <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <h1 class:primary-text={currentTabIndex === 1} on:click={() => {currentTabIndex = 1, listScroll = 0}}>Installed</h1>
+    <h1 class:primary-text={currentTabIndex === 1} on:click={() => {currentTabIndex = 1, listScroll = 0}}>{lang.addons.global.navbar.installed}</h1>
     <h2>|</h2>
     <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <h1 on:click={handleSelectCustomMods}>Custom</h1>
+    <h1 on:click={handleSelectCustomMods}>{lang.addons.global.navbar.button.custom}</h1>
   </div>
   {#if currentTabIndex === 0}
     <ModrinthSearchBar on:search={() => {
             search_offset = 0;
+            listScroll = 0;
             searchMods();
         }} bind:searchTerm={searchterm} bind:filterCategories={filterCategories} bind:filters={filters}
-                       bind:options={options} placeHolder="Search for Mods on Modrinth..." />
+                       bind:options={options} placeHolder={lang.addons.mods.searchbar.modrinth.placeholder} />
     {#if mods !== null && mods.length > 0 }
       <div id="scrollList" class="scrollList" on:scroll={() => listScroll = document.getElementById('scrollList').scrollTop ?? 0}>
-        {#each [...mods, mods.length >= 30 ? 'LOAD_MORE_MODS' : null] as item}
+        {#each [...mods, showMoreButton && !filters['norisk']?.enabled ? 'LOAD_MORE_MODS' : null] as item}
           {#if item === 'LOAD_MORE_MODS'}
             <!-- svelte-ignore a11y-click-events-have-key-events -->
-            <div class="load-more-button" on:click={loadMore}><p class="primary-text">LOAD MORE</p></div>
+            <div class="load-more-button" on:click={loadMore}><p class="primary-text">{lang.addons.global.button.loadMore}</p></div>
           {:else if item != null}
             <ModItem
               text={checkIfRequiredOrInstalled(item)}
               enabled={launcherProfile.mods.find(mod => mod.value.name === item.slug)?.value?.enabled ?? true}
-              on:install={() => installModAndDependencies(item)}
+              on:install={(data) => installModAndDependencies(item, data.detail.version)}
               on:enable={() => enableRecomendedMod(item.slug)}
               on:disable={() => disableRecomendedMod(item.slug)}
               on:delete={() => deleteInstalledMod(item.slug)}
               type="RESULT"
+              modVersions={null}
+              manifest={launchManifest}
               mod={item} />
           {/if}
         {/each}
       </div>
     {:else}
-      <h1 class="loading-indicator">{mods == null ? 'No Mods found.' : 'Loading...'}</h1>
+      <h1 class="loading-indicator">{mods == null ? lang.addons.mods.noModsFound : lang.addons.global.loading}</h1>
     {/if}
   {:else if currentTabIndex === 1}
-    <ModrinthSearchBar on:search={() => {}} bind:searchTerm={filterterm} placeHolder="Filter installed Mods..." />
-    {#if launcherProfile.mods.length > 0}
+    <ModrinthSearchBar on:search={async () => {
+      const prev = launcherProfile.mods;
+      launcherProfile.mods = [];
+      await tick();
+      launcherProfile.mods = prev;
+    }} bind:searchTerm={filterterm} placeHolder={lang.addons.mods.searchbar.installed.placeholder} />
+    {#if launcherProfile.mods.filter(mod => !mod.value.source.artifact.includes("PLACEHOLDER")).length > 0}
       <div id="scrollList" class="scrollList" on:scroll={() => listScroll = document.getElementById('scrollList').scrollTop}>
         {#each (() => {
           let dependencies = new Set();
@@ -553,7 +699,7 @@
                 dependencies.add(d);
               }
             });
-  
+
           return [...launcherProfile.mods, ...dependencies].filter((mod) => {
             let name = mod.value.name.toUpperCase()
             return name.includes(filterterm.toUpperCase()) && !mod.value.source.artifact.includes("PLACEHOLDER")
@@ -569,6 +715,8 @@
               on:delete={() => deleteCustomModFile(item.value.source.artifact.split(":")[2])}
               on:toggle={() => toggleInstalledMod(item)}
               type="CUSTOM"
+              modVersions={null}
+              manifest={launchManifest}
               mod={item} />
           {:else}
             <ModItem
@@ -580,13 +728,17 @@
               ? "DEPENDENCY" : "INSTALLED"}
               on:delete={() => deleteInstalledMod(item.value.source.artifact.split(":")[1])}
               on:toggle={() => toggleInstalledMod(item)}
+              on:changeVersion={(data) => changeModVersion(item.value.source.artifact.split(":")[1], data.detail.version)}
+              on:getVersions={async () => await getModVersions(item.value.source.artifact.split(":")[1])}
               type="INSTALLED"
+              bind:modVersions={modVersions}
+              manifest={launchManifest}
               mod={item} />
           {/if}
         {/each}
       </div>
     {:else}
-      <h1 class="loading-indicator">{launcherProfile.mods.length < 1 ? 'No Mods installed.' : 'Loading...'}</h1>
+      <h1 class="loading-indicator">{launcherProfile.mods.filter(mod => !mod.value.source.artifact.includes("PLACEHOLDER")).length < 1 ? lang.addons.mods.noModsInstalled : lang.addons.global.loading}</h1>
     {/if}
   {/if}
 </div>
@@ -599,7 +751,6 @@
     }
 
     .navbar h1 {
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         margin-bottom: 0.8em;
         cursor: pointer;
@@ -613,7 +764,6 @@
     }
 
     .navbar h2 {
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         margin-bottom: 0.8em;
         cursor: default;
@@ -623,7 +773,6 @@
         display: flex;
         justify-content: center;
         align-items: center;
-        font-family: 'Press Start 2P', serif;
         font-size: 20px;
         margin-top: 200px;
     }
@@ -633,7 +782,6 @@
         flex-direction: row;
         justify-content: center;
         margin-top: 20px;
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         margin-bottom: 0.8em;
         cursor: pointer;

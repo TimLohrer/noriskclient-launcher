@@ -1,7 +1,11 @@
 <script>
     import { pop, location } from "svelte-spa-router";
     import { activeChangeLog, lastViewedPopups, saveLastViewedPopups } from "../../../utils/popupUtils.js";
-
+	import { translations } from '../../../utils/translationUtils.js';
+    
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
+    
     function back() {
         if ($location == "/changeLog") {
             const version = $activeChangeLog?.version;
@@ -23,7 +27,7 @@
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
-<h1 class="back-button" on:click={back}>[BACK]</h1>
+<h1 class="back-button" on:click={back}>[{lang.main.buttons.back}]</h1>
 
 <style>
     .back-button {
@@ -32,8 +36,7 @@
         font-size: 20px;
         color: #e8e8e8;
         text-shadow: 2px 2px #7a7777;
-        font-family: 'Press Start 2P', serif;
-        cursor: pointer;
+            cursor: pointer;
     }
 
     .back-button:hover {

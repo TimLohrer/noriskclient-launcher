@@ -2,6 +2,10 @@
   import { createEventDispatcher } from "svelte";
   import VirtualList from "../../utils/VirtualList.svelte";
   import ConfigRadioButton from "../../config/inputs/ConfigRadioButton.svelte";
+  import { translations } from '../../../utils/translationUtils.js';
+    
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
 
   const dispatch = createEventDispatcher();
 
@@ -10,7 +14,11 @@
   export let list = [];
   export let activeFilters = {};
   let reload = true;
-  
+
+  // kp, aber funktioniert
+  $: if (showModal) {
+    loadList();
+  }
   
   function loadList() {
     list = [];
@@ -48,46 +56,40 @@
   loadList();
 
   const hideModal = () => showModal = false;
-
-  let dialog; // HTMLDialogElement
-
-  $: if (dialog && showModal) dialog.showModal();
-
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
-<dialog
-  bind:this={dialog}
-  on:close={hideModal}
-  on:click|self={() => dialog.close()}>
-  <div on:click|stopPropagation class="divider">
-    <div>
-      <div class="header-wrapper">
-        <h1 class="nes-font">FILTERS</h1>
-        <h1 class="nes-font red-text-clickable close-button" on:click={hideModal}>X</h1>
-      </div>
-      <hr>
-      <div class="settings-wrapper">
-        {#if !reload}
-          <VirtualList height="27.5em" items={list} let:item>
-            {#if item?.id == undefined || item?.id == null}
-              <p class="filter-type primary-text" class:first={list.indexOf(item) == 0}>{item}</p>
-            {:else}
-              <ConfigRadioButton bind:value={activeFilters[item.id].enabled} text={item.name} reversed={true} spaced={true} on:toggle={() => dispatch('search')} />
-              <div style="height: 7.5px;"></div>
+{#if showModal}
+  <div class="overlay" on:click={hideModal}>
+    <div class="dialog">
+      <div on:click|stopPropagation class="divider">
+        <div>
+          <div class="header-wrapper">
+            <h1 class="nes-font">{lang.addons.filters.title}</h1>
+            <h1 class="nes-font red-text-clickable close-button" on:click={hideModal}>X</h1>
+          </div>
+          <hr>
+          <div class="settings-wrapper">
+            {#if !reload}
+              <VirtualList height="27.5em" items={list} let:item>
+                {#if item?.id == undefined || item?.id == null}
+                  <p class="filter-type primary-text" class:first={list.indexOf(item) == 0}>{item}</p>
+                {:else}
+                  <ConfigRadioButton bind:value={activeFilters[item.id].enabled} text={item.name} reversed={true} spaced={true} on:toggle={() => dispatch('search')} />
+                  <div style="height: 7.5px;"></div>
+                {/if}
+              </VirtualList>
             {/if}
-          </VirtualList>
-        {:else}
-          <p>LOADING</p>
-        {/if}
+          </div>
+        </div>
+        <!-- svelte-ignore a11y-autofocus -->
+        <div class="clear-data-button-wrapper">
+          <p class="red-text" on:click={resetFilters}>{lang.addons.filters.button.resetFilters}</p>
+        </div>
       </div>
-    </div>
-    <!-- svelte-ignore a11y-autofocus -->
-    <div class="clear-data-button-wrapper">
-      <p class="red-text" on:click={resetFilters}>RESET FILTERS</p>
     </div>
   </div>
-</dialog>
+{/if}
 
 <style>
     .header-wrapper {
@@ -116,8 +118,7 @@
     }
 
     .filter-type {
-      font-family: 'Press Start 2P', serif;
-      font-size: 20px;
+        font-size: 20px;
       margin-top: 30px;
       margin-bottom: 15px;
       user-select: none;
@@ -136,7 +137,15 @@
         padding: 1em;
     }
 
-    dialog {
+    .overlay {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.2);
+        z-index: 999998;
+    }
+
+    .dialog {
         background-color: var(--background-color);
         border: 5px solid black;
         width: 34em;
@@ -147,31 +156,13 @@
         top: 50%; /* 50% von oben */
         left: 50%; /* 50% von links */
         transform: translate(-50%, -50%); /* Verschiebung um die Hälfte der eigenen Breite und Höhe */
+        z-index: 999999;
     }
-
-    dialog::backdrop {
-        background: rgba(0, 0, 0, 0.3);
-    }
-
-    dialog > div {
+    .dialog > div {
         padding: 1em;
     }
 
-    dialog[open]::backdrop {
-        animation: fade 0.2s ease-out;
-    }
-
-    @keyframes fade {
-        from {
-            opacity: 0;
-        }
-        to {
-            opacity: 1;
-        }
-    }
-
     .nes-font {
-        font-family: 'Press Start 2P', serif;
         font-size: 30px;
         user-select: none;
         cursor: default;
@@ -182,7 +173,6 @@
         align-content: center;
         align-items: center;
         justify-content: center;
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         padding: 1em;
         text-shadow: 2px 2px #6e0000;

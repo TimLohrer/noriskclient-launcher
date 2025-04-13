@@ -1,38 +1,81 @@
-use std::{collections::HashMap, fmt, marker::PhantomData, path::{Path, PathBuf}, str::FromStr};
-
-use anyhow::Result;
-use tokio::fs;
-use serde::{Deserialize, Deserializer, de::{self, MapAccess, Visitor}};
-use void::Void;
-use std::collections::HashSet;
-use crate::{error::LauncherError, HTTP_CLIENT, LAUNCHER_DIRECTORY, utils::{download_file_untracked, download_private_file_untracked, Architecture}};
-use crate::utils::{get_maven_artifact_path, sha1sum};
-use std::sync::Arc;
-use log::{debug, info};
-use crate::app::api::get_api_base;
+use std::{
+    collections::HashMap,
+    fmt,
+    marker::PhantomData,
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 use crate::app::app_data::LauncherOptions;
 use crate::minecraft::launcher::LaunchingParameter;
 use crate::minecraft::progress::{ProgressReceiver, ProgressUpdate};
+use crate::utils::{get_maven_artifact_path, md5sum, sha1sum};
+use crate::{
+    error,
+    error::LauncherError,
+    utils::{download_file_untracked, download_private_file_untracked, Architecture},
+    HTTP_CLIENT, LAUNCHER_DIRECTORY,
+};
+use anyhow::Result;
+use error::Error;
+use log::{debug, error, info};
+use serde::{
+    de::{self, MapAccess, Visitor},
+    Deserialize, Deserializer, Serialize,
+};
+use std::collections::HashSet;
+use std::sync::Arc;
+use tokio::fs;
+use void::Void;
 
 // https://launchermeta.mojang.com/mc/game/version_manifest.json
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct VersionManifest {
     pub versions: Vec<ManifestVersion>,
 }
 
 impl VersionManifest {
-    pub async fn download() -> Result<Self> {
-        let response = HTTP_CLIENT.get("https://launchermeta.mojang.com/mc/game/version_manifest.json")
-            .send().await?
-            .error_for_status()?;
-        let manifest = response.json::<VersionManifest>().await?;
-
-        Ok(manifest)
+    pub async fn download(app_data: &Path) -> Result<Self, Error> {
+        match HTTP_CLIENT
+            .get("https://launchermeta.mojang.com/mc/game/version_manifest.json")
+            .send()
+            .await
+        {
+            Err(error) => {
+                error!("Error Downloading Mojang Version Manifest {:?}", error);
+                Ok(Self::load(app_data).await?)
+            }
+            Ok(response) => match response.json::<VersionManifest>().await {
+                Ok(manifest) => {
+                    manifest.store(app_data).await?;
+                    Ok(manifest)
+                }
+                Err(error) => {
+                    error!("Error Downloading Mojang Version Manifest {:?}", error);
+                    Ok(Self::load(app_data).await?)
+                }
+            },
+        }
+    }
+    pub async fn load(app_data: &Path) -> Result<Self, Error> {
+        // load the options from the file
+        let options = serde_json::from_slice::<VersionManifest>(
+            &fs::read(app_data.join("version_manifest.json")).await?,
+        )?;
+        Ok(options)
+    }
+    pub async fn store(&self, app_data: &Path) -> Result<(), Error> {
+        let _ = fs::write(
+            app_data.join("version_manifest.json"),
+            serde_json::to_string_pretty(&self)?,
+        )
+        .await?;
+        debug!("Version manifest was stored...");
+        Ok(())
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct ManifestVersion {
     pub id: String,
     #[serde(rename = "type")]
@@ -43,7 +86,7 @@ pub struct ManifestVersion {
     pub release_time: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct VersionProfile {
     pub id: String,
     #[serde(rename = "assetIndex")]
@@ -67,15 +110,18 @@ pub struct VersionProfile {
 }
 
 impl VersionProfile {
-    pub(crate) fn merge(&mut self, mut parent: VersionProfile) -> Result<()> {
+    pub(crate) fn merge(&mut self, parent: VersionProfile) -> Result<()> {
         Self::merge_options(&mut self.asset_index_location, parent.asset_index_location);
         Self::merge_options(&mut self.assets, parent.assets);
 
-        Self::merge_larger(&mut self.minimum_launcher_version, parent.minimum_launcher_version);
+        Self::merge_larger(
+            &mut self.minimum_launcher_version,
+            parent.minimum_launcher_version,
+        );
         Self::merge_options(&mut self.downloads, parent.downloads);
         Self::merge_larger(&mut self.compliance_level, parent.compliance_level);
+        Self::merge_libraries(&mut self.libraries, parent.libraries);
 
-        self.libraries.append(&mut parent.libraries);
         Self::merge_options(&mut self.main_class, parent.main_class);
         Self::merge_options(&mut self.logging, parent.logging);
 
@@ -84,7 +130,10 @@ impl VersionProfile {
                 if let ArgumentDeclaration::V14(v14_b) = parent.arguments {
                     Self::merge_options(&mut v14_a.minecraft_arguments, v14_b.minecraft_arguments);
                 } else {
-                    return Err(LauncherError::InvalidVersionProfile("version profile inherits from incompatible profile".to_string()).into());
+                    return Err(LauncherError::InvalidVersionProfile(
+                        "version profile inherits from incompatible profile".to_string(),
+                    )
+                    .into());
                 }
             }
             ArgumentDeclaration::V21(v21_a) => {
@@ -92,12 +141,59 @@ impl VersionProfile {
                     v21_a.arguments.game.append(&mut v21_b.arguments.game);
                     v21_a.arguments.jvm.append(&mut v21_b.arguments.jvm);
                 } else {
-                    return Err(LauncherError::InvalidVersionProfile("version profile inherits from incompatible profile".to_string()).into());
+                    return Err(LauncherError::InvalidVersionProfile(
+                        "version profile inherits from incompatible profile".to_string(),
+                    )
+                    .into());
                 }
             }
         }
 
         Ok(())
+    }
+
+    fn merge_libraries(current_libraries: &mut Vec<Library>, parent_libraries: Vec<Library>) {
+        let mut library_map: HashMap<String, Library> = current_libraries
+            .iter()
+            .map(|lib| (lib.get_identifier(), lib.clone()))
+            .collect();
+        for parent_lib in parent_libraries {
+            if let Some(lib) = library_map.get_mut(&parent_lib.get_identifier()) {
+                lib.rules.extend(parent_lib.rules);
+                if let Some(parent_downloads) = parent_lib.downloads {
+                    match lib.downloads.as_mut() {
+                        Some(downloads) => {
+                            if let Some(artifact) = parent_downloads.artifact {
+                                downloads.artifact = Some(artifact);
+                            }
+                            if let Some(classifiers) = parent_downloads.classifiers {
+                                match downloads.classifiers.as_mut() {
+                                    Some(lib_classifiers) => lib_classifiers.extend(classifiers),
+                                    None => downloads.classifiers = Some(classifiers),
+                                }
+                            }
+                        }
+                        None => lib.downloads = Some(parent_downloads),
+                    }
+                }
+                if let Some(natives) = parent_lib.natives {
+                    match lib.natives.as_mut() {
+                        Some(lib_natives) => lib_natives.extend(natives),
+                        None => lib.natives = Some(natives),
+                    }
+                } else if lib.natives.is_none() {
+                    lib.natives = parent_lib.natives;
+                }
+                if lib.url.is_none() {
+                    lib.url = parent_lib.url;
+                }
+                continue;
+            }
+
+            library_map.insert(parent_lib.get_identifier(), parent_lib);
+        }
+
+        *current_libraries = library_map.into_values().collect();
     }
 
     fn merge_options<T>(a: &mut Option<T>, b: Option<T>) {
@@ -106,7 +202,10 @@ impl VersionProfile {
         }
     }
 
-    fn merge_larger<T>(a: &mut Option<T>, b: Option<T>) where T: Ord {
+    fn merge_larger<T>(a: &mut Option<T>, b: Option<T>)
+    where
+        T: Ord,
+    {
         if let Some((val_a, val_b)) = a.as_ref().zip(b.as_ref()) {
             if val_a < val_b {
                 *a = b;
@@ -117,7 +216,7 @@ impl VersionProfile {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(untagged)] // TODO: Might guess from minimum_launcher_version just to be sure.
 pub enum ArgumentDeclaration {
     /// V21 describes the new version json used by versions above 1.13.
@@ -127,7 +226,13 @@ pub enum ArgumentDeclaration {
 }
 
 impl ArgumentDeclaration {
-    pub(crate) fn add_jvm_args_to_vec(&self, norisk_token: &str, command_arguments: &mut Vec<String>, parameter: &LaunchingParameter, features: &HashSet<String>) -> Result<()> {
+    pub(crate) fn add_jvm_args_to_vec(
+        &self,
+        norisk_token: &str,
+        command_arguments: &mut Vec<String>,
+        parameter: &LaunchingParameter,
+        features: &HashSet<String>,
+    ) -> Result<()> {
         command_arguments.push(format!("-Xmx{}M", parameter.memory));
         command_arguments.push("-XX:+UnlockExperimentalVMOptions".to_string());
         command_arguments.push("-XX:+UseG1GC".to_string());
@@ -138,8 +243,14 @@ impl ArgumentDeclaration {
         command_arguments.push(format!("-Dnorisk.token={}", norisk_token));
         command_arguments.push(format!("-Dnorisk.experimental={}", parameter.dev_mode));
         if parameter.force_server.is_some() {
-            info!("\n\n\nAdded force server arg: {:?}\n\n\n.", parameter.force_server.clone().unwrap());
-            command_arguments.push(format!("-Dnorisk.forceServer={}", parameter.force_server.clone().unwrap()));
+            info!(
+                "\n\n\nAdded force server arg: {:?}\n\n\n.",
+                parameter.force_server.clone().unwrap()
+            );
+            command_arguments.push(format!(
+                "-Dnorisk.forceServer={}",
+                parameter.force_server.clone().unwrap()
+            ));
         }
         for arg in parameter.custom_java_args.split(" ") {
             if arg != " " && arg != "" {
@@ -149,34 +260,58 @@ impl ArgumentDeclaration {
         }
 
         match self {
-            ArgumentDeclaration::V14(_) => command_arguments.append(&mut vec!["-Djava.library.path=${natives_directory}".to_string(), "-cp".to_string(), "${classpath}".to_string()]),
+            ArgumentDeclaration::V14(_) => command_arguments.append(&mut vec![
+                "-Djava.library.path=${natives_directory}".to_string(),
+                "-cp".to_string(),
+                "${classpath}".to_string(),
+            ]),
             ArgumentDeclaration::V21(decl) => {
-                ArgumentDeclaration::check_rules_and_add(command_arguments, &decl.arguments.jvm, features)?;
+                ArgumentDeclaration::check_rules_and_add(
+                    command_arguments,
+                    &decl.arguments.jvm,
+                    features,
+                )?;
             }
         }
 
         Ok(())
     }
-    pub(crate) fn add_game_args_to_vec(&self, command_arguments: &mut Vec<String>, features: &HashSet<String>) -> Result<()> {
+    pub(crate) fn add_game_args_to_vec(
+        &self,
+        command_arguments: &mut Vec<String>,
+        features: &HashSet<String>,
+    ) -> Result<()> {
         match self {
             ArgumentDeclaration::V14(decl) => {
                 command_arguments.extend(
                     decl.minecraft_arguments
                         .as_ref()
-                        .ok_or_else(|| LauncherError::InvalidVersionProfile("no game arguments specified".to_string()))?
+                        .ok_or_else(|| {
+                            LauncherError::InvalidVersionProfile(
+                                "no game arguments specified".to_string(),
+                            )
+                        })?
                         .split(" ")
-                        .map(ToOwned::to_owned)
+                        .map(ToOwned::to_owned),
                 );
             }
             ArgumentDeclaration::V21(decl) => {
-                ArgumentDeclaration::check_rules_and_add(command_arguments, &decl.arguments.game, features)?;
+                ArgumentDeclaration::check_rules_and_add(
+                    command_arguments,
+                    &decl.arguments.game,
+                    features,
+                )?;
             }
         }
 
         Ok(())
     }
 
-    fn check_rules_and_add(command_arguments: &mut Vec<String>, args: &Vec<Argument>, features: &HashSet<String>) -> Result<()> {
+    fn check_rules_and_add(
+        command_arguments: &mut Vec<String>,
+        args: &Vec<Argument>,
+        features: &HashSet<String>,
+    ) -> Result<()> {
         for argument in args {
             if let Some(rules) = &argument.rules {
                 if !crate::minecraft::rule_interpreter::check_condition(rules, &features)? {
@@ -186,7 +321,7 @@ impl ArgumentDeclaration {
 
             match &argument.value {
                 ArgumentValue::SINGLE(value) => command_arguments.push(value.to_owned()),
-                ArgumentValue::VEC(vec) => command_arguments.append(&mut vec.clone())
+                ArgumentValue::VEC(vec) => command_arguments.append(&mut vec.clone()),
             };
         }
 
@@ -194,28 +329,52 @@ impl ArgumentDeclaration {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct V14ArgumentDeclaration {
     #[serde(rename = "minecraftArguments")]
     pub minecraft_arguments: Option<String>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct V21ArgumentDeclaration {
     pub arguments: Arguments,
 }
 
 impl VersionProfile {
-    pub async fn load(url: &String) -> Result<Self> {
-        dbg!(url);
-        Ok(HTTP_CLIENT.get(url).send().await?.error_for_status()?.json::<VersionProfile>().await?)
+    pub async fn download(app_data: &Path, url: &String) -> Result<Self, Error> {
+        match HTTP_CLIENT.get(url).send().await {
+            Err(error) => {
+                error!("Error Downloading Sub System {:?}", error);
+                Ok(Self::load(app_data).await?)
+            }
+            Ok(response) => match response.json::<VersionProfile>().await {
+                Ok(manifest) => {
+                    manifest.store(app_data).await?;
+                    Ok(manifest)
+                }
+                Err(error) => {
+                    error!("Error Downloading Sub System {:?}", error);
+                    Ok(Self::load(app_data).await?)
+                }
+            },
+        }
+    }
+    pub async fn load(app_data: &Path) -> Result<Self, Error> {
+        // load the options from the file
+        let options = serde_json::from_slice::<VersionProfile>(&fs::read(app_data).await?)?;
+        Ok(options)
+    }
+    pub async fn store(&self, app_data: &Path) -> Result<(), Error> {
+        let _ = fs::write(app_data, serde_json::to_string_pretty(&self)?).await?;
+        debug!("Sub System was stored...");
+        Ok(())
     }
 }
 
 // Parsing the arguments was pain, please mojang. What in the hell did you do?
 // https://github.com/serde-rs/serde/issues/723 That's why I've done a workaround using vec_argument
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Arguments {
     #[serde(default)]
     #[serde(deserialize_with = "vec_argument")]
@@ -225,13 +384,13 @@ pub struct Arguments {
     pub jvm: Vec<Argument>,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Argument {
     pub rules: Option<Vec<Rule>>,
     pub value: ArgumentValue,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(untagged)]
 pub enum ArgumentValue {
     SINGLE(String),
@@ -242,14 +401,16 @@ impl FromStr for Argument {
     type Err = Void;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Argument { value: ArgumentValue::SINGLE(s.to_string()), rules: None })
+        Ok(Argument {
+            value: ArgumentValue::SINGLE(s.to_string()),
+            rules: None,
+        })
     }
 }
 
-
 fn vec_argument<'de, D>(deserializer: D) -> Result<Vec<Argument>, D::Error>
-    where
-        D: Deserializer<'de>,
+where
+    D: Deserializer<'de>,
 {
     #[derive(Deserialize)]
     struct Wrapper(#[serde(deserialize_with = "string_or_struct")] Argument);
@@ -259,15 +420,15 @@ fn vec_argument<'de, D>(deserializer: D) -> Result<Vec<Argument>, D::Error>
 }
 
 fn string_or_struct<'de, T, D>(deserializer: D) -> Result<T, D::Error>
-    where
-        T: Deserialize<'de> + FromStr<Err=Void>,
-        D: Deserializer<'de>,
+where
+    T: Deserialize<'de> + FromStr<Err = Void>,
+    D: Deserializer<'de>,
 {
     struct StringOrStruct<T>(PhantomData<fn() -> T>);
 
     impl<'de, T> Visitor<'de> for StringOrStruct<T>
-        where
-            T: Deserialize<'de> + FromStr<Err=Void>,
+    where
+        T: Deserialize<'de> + FromStr<Err = Void>,
     {
         type Value = T;
 
@@ -276,15 +437,15 @@ fn string_or_struct<'de, T, D>(deserializer: D) -> Result<T, D::Error>
         }
 
         fn visit_str<E>(self, value: &str) -> Result<T, E>
-            where
-                E: serde::de::Error,
+        where
+            E: serde::de::Error,
         {
             Ok(FromStr::from_str(value).unwrap())
         }
 
         fn visit_map<M>(self, map: M) -> Result<T, M::Error>
-            where
-                M: MapAccess<'de>,
+        where
+            M: MapAccess<'de>,
         {
             Deserialize::deserialize(de::value::MapAccessDeserializer::new(map))
         }
@@ -293,7 +454,7 @@ fn string_or_struct<'de, T, D>(deserializer: D) -> Result<T, D::Error>
     deserializer.deserialize_any(StringOrStruct(PhantomData))
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct AssetIndexLocation {
     pub id: String,
     pub sha1: String,
@@ -318,19 +479,23 @@ impl AssetIndexLocation {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct AssetIndex {
     pub objects: HashMap<String, AssetObject>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct AssetObject {
     pub hash: String,
     pub size: i64,
 }
 
 impl AssetObject {
-    pub async fn download(&self, assets_objects_folder: impl AsRef<Path>, progress: Arc<impl ProgressReceiver>) -> Result<bool> {
+    pub async fn download(
+        &self,
+        assets_objects_folder: impl AsRef<Path>,
+        progress: Arc<impl ProgressReceiver>,
+    ) -> Result<bool> {
         let assets_objects_folder = assets_objects_folder.as_ref().to_owned();
         let asset_folder = assets_objects_folder.join(&self.hash[0..2]);
 
@@ -341,10 +506,21 @@ impl AssetObject {
         let asset_path = asset_folder.join(&self.hash);
 
         return if !asset_path.exists() {
-            progress.progress_update(ProgressUpdate::set_label(format!("Downloading asset object {}", self.hash)));
+            progress.progress_update(ProgressUpdate::set_label(format!(
+                "translation.downloadingAssetObject&hash%{}",
+                self.hash
+            )));
 
             info!("Downloading {}", self.hash);
-            download_file_untracked(&*format!("https://resources.download.minecraft.net/{}/{}", &self.hash[0..2], &self.hash), asset_path).await?;
+            download_file_untracked(
+                &*format!(
+                    "https://resources.download.minecraft.net/{}/{}",
+                    &self.hash[0..2],
+                    &self.hash
+                ),
+                asset_path,
+            )
+            .await?;
             info!("Downloaded {}", self.hash);
 
             Ok(true)
@@ -353,8 +529,17 @@ impl AssetObject {
         };
     }
 
-    pub async fn download_norisk_cosmetic(&self, branch: String, file_path: String, norisk_token: String, assets_objects_folder: impl AsRef<Path>, progress: Arc<impl ProgressReceiver>) -> Result<bool> {
-        let options = LauncherOptions::load(LAUNCHER_DIRECTORY.config_dir()).await.unwrap_or_default();
+    pub async fn download_norisk_cosmetic(
+        &self,
+        branch: String,
+        file_path: String,
+        norisk_token: String,
+        assets_objects_folder: impl AsRef<Path>,
+        progress: Arc<impl ProgressReceiver>,
+    ) -> Result<bool> {
+        let options = LauncherOptions::load(LAUNCHER_DIRECTORY.config_dir())
+            .await
+            .unwrap_or_default();
         let assets_objects_folder = assets_objects_folder.as_ref().to_owned();
 
         let mut path_parts: Vec<&str> = file_path.split("/").collect();
@@ -378,13 +563,19 @@ impl AssetObject {
         let mut download = false;
 
         if asset_file_path.exists() {
-            let sha1 = sha1sum(&asset_file_path)?;
+            let md5 = md5sum(&asset_file_path)?;
 
-            if &self.hash == &sha1 {
+            if &self.hash == &md5 {
                 // If sha1 matches, return
-                info!("Norisk asset {} already exists and matches sha1.", &self.hash);
+                info!(
+                    "Norisk asset {} already exists and matches md5.",
+                    &self.hash
+                );
             } else {
-                info!("Norisk asset {} already exists but does not match sha1.", &self.hash);
+                info!(
+                    "Norisk asset {} != {} already exists but does not match md5.",
+                    md5, &self.hash
+                );
                 download = true;
             }
         } else {
@@ -392,10 +583,22 @@ impl AssetObject {
         }
 
         return if download {
-            progress.progress_update(ProgressUpdate::set_label(format!("Downloading asset object {}", self.hash)));
+            progress.progress_update(ProgressUpdate::set_label(format!(
+                "translation.downloadingNoriskAssetObject&hash%{}",
+                self.hash
+            )));
 
             info!("Downloading {}", self.hash);
-            download_private_file_untracked(&*format!("{}/launcher/assets/{}/{}/{}", get_api_base(options.experimental_mode), branch, &self.hash[0..2], &self.hash), norisk_token, asset_file_path).await?;
+            let prod_or_exp = if options.experimental_mode {
+                "exp"
+            } else {
+                "prod"
+            };
+            let path = &*format!(
+                "{}/{}/{}/assets/{}",
+                "https://cdn.norisk.gg/branches", prod_or_exp, branch, file_path,
+            );
+            download_private_file_untracked(path, norisk_token, asset_file_path).await?;
             info!("Downloaded {}", self.hash);
 
             Ok(true)
@@ -404,16 +607,35 @@ impl AssetObject {
         };
     }
 
-    pub async fn download_destructing(self, assets_objects_folder: impl AsRef<Path>, progress: Arc<impl ProgressReceiver>) -> Result<bool> {
+    pub async fn download_destructing(
+        self,
+        assets_objects_folder: impl AsRef<Path>,
+        progress: Arc<impl ProgressReceiver>,
+    ) -> Result<bool> {
         return self.download(assets_objects_folder, progress).await;
     }
 
-    pub async fn download_norisk_cosmetic_destructing(self, branch: String, file_path: String, norisk_token: String, assets_objects_folder: impl AsRef<Path>, progress: Arc<impl ProgressReceiver>) -> Result<bool> {
-        return self.download_norisk_cosmetic(branch, file_path, norisk_token, assets_objects_folder, progress).await;
+    pub async fn download_norisk_cosmetic_destructing(
+        self,
+        branch: String,
+        file_path: String,
+        norisk_token: String,
+        assets_objects_folder: impl AsRef<Path>,
+        progress: Arc<impl ProgressReceiver>,
+    ) -> Result<bool> {
+        return self
+            .download_norisk_cosmetic(
+                branch,
+                file_path,
+                norisk_token,
+                assets_objects_folder,
+                progress,
+            )
+            .await;
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Downloads {
     pub client: Option<Download>,
     pub client_mappings: Option<Download>,
@@ -422,8 +644,7 @@ pub struct Downloads {
     pub windows_server: Option<Download>,
 }
 
-
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Download {
     pub sha1: String,
     pub size: i64,
@@ -438,7 +659,7 @@ impl Download {
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Library {
     pub name: String,
     pub downloads: Option<LibraryDownloads>,
@@ -449,40 +670,58 @@ pub struct Library {
 }
 
 impl Library {
+    fn get_identifier(&self) -> String {
+        let parts: Vec<&str> = self.name.split(':').collect();
+        match parts.len() {
+            3 => {
+                // Standard format: group:name:version
+                format!("{}:{}", parts[0], parts[1])
+            }
+            4 => {
+                // Format with classifier: group:name:version:classifier
+                format!("{}:{}:{}", parts[0], parts[1], parts[3])
+            }
+            _ => {
+                // Fallback for unexpected formats - use the whole name
+                self.name.clone()
+            }
+        }
+    }
     pub fn get_library_download(&self) -> Result<LibraryDownloadInfo> {
         if let Some(artifact) = self.downloads.as_ref().and_then(|x| x.artifact.as_ref()) {
             return Ok(artifact.into());
         }
 
         let path = get_maven_artifact_path(&self.name)?;
-        let url = self.url.as_deref().unwrap_or("https://libraries.minecraft.net/");
+        let url = self
+            .url
+            .as_deref()
+            .unwrap_or("https://libraries.minecraft.net/");
 
-        return Ok(
-            LibraryDownloadInfo {
-                url: format!("{}{}", url, path),
-                sha1: None,
-                size: None,
-                path,
-            }
-        );
+        return Ok(LibraryDownloadInfo {
+            url: format!("{}{}", url, path),
+            sha1: None,
+            size: None,
+            path,
+        });
     }
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct Rule {
     pub action: RuleAction,
     pub os: Option<OsRule>,
     pub features: Option<HashMap<String, bool>>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct OsRule {
     pub name: Option<String>,
     pub version: Option<String>,
     pub arch: Option<Architecture>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub enum RuleAction {
     #[serde(rename = "allow")]
     Allow,
@@ -490,13 +729,13 @@ pub enum RuleAction {
     Disallow,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct LibraryDownloads {
     pub artifact: Option<LibraryArtifact>,
     pub classifiers: Option<HashMap<String, LibraryArtifact>>,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct LibraryArtifact {
     pub path: String,
     pub sha1: String,
@@ -504,7 +743,7 @@ pub struct LibraryArtifact {
     pub url: String,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Serialize, Clone)]
 pub struct LibraryDownloadInfo {
     pub path: String,
     pub sha1: Option<String>,
@@ -525,16 +764,26 @@ impl From<&LibraryArtifact> for LibraryDownloadInfo {
 
 impl LibraryDownloadInfo {
     async fn fetch_sha1(&self) -> Result<String> {
-        HTTP_CLIENT.get(&format!("{}{}", &self.url, ".sha1"))
-            .send().await?
+        HTTP_CLIENT
+            .get(&format!("{}{}", &self.url, ".sha1"))
+            .send()
+            .await?
             .error_for_status()?
             .text()
             .await
             .map_err(|e| anyhow::anyhow!(e))
     }
 
-    pub async fn download(&self, name: String, libraries_folder: &Path, progress: Arc<impl ProgressReceiver>) -> Result<PathBuf> {
-        info!("Downloading library {}, sha1: {:?}, size: {:?}", name, &self.sha1, &self.size);
+    pub async fn download(
+        &self,
+        name: String,
+        libraries_folder: &Path,
+        progress: Arc<impl ProgressReceiver>,
+    ) -> Result<PathBuf> {
+        info!(
+            "Downloading library {}, sha1: {:?}, size: {:?}",
+            name, &self.sha1, &self.size
+        );
         debug!("Library download url: {}", &self.url);
 
         let path = libraries_folder.to_path_buf();
@@ -556,9 +805,7 @@ impl LibraryDownloadInfo {
                 Some(sha1)
             } else {
                 // If sha1 file doesn't exist, fetch it
-                let sha1 = self.fetch_sha1().await
-                    .map(Some)
-                    .unwrap_or(None);
+                let sha1 = self.fetch_sha1().await.map(Some).unwrap_or(None);
 
                 // Write sha1 file
                 if let Some(sha1) = &sha1 {
@@ -587,12 +834,18 @@ impl LibraryDownloadInfo {
             }
 
             // If sha1 doesn't match, remove the file
-            info!("Library {} already exists but sha1 doesn't match, redownloading", name);
+            info!(
+                "Library {} already exists but sha1 doesn't match, redownloading",
+                name
+            );
             fs::remove_file(&library_path).await?;
         }
 
         // Download library
-        progress.progress_update(ProgressUpdate::set_label(format!("Downloading library {}", name)));
+        progress.progress_update(ProgressUpdate::set_label(format!(
+            "translation.downloadingLibrary&library%{}",
+            name
+        )));
 
         download_file_untracked(&self.url, &library_path).await?;
         info!("Downloaded {}", self.url);
@@ -609,7 +862,7 @@ impl LibraryDownloadInfo {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Logging {
     // TODO: Add logging configuration
 }

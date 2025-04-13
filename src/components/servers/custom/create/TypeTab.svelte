@@ -1,5 +1,9 @@
 <script>
     import {createEventDispatcher} from "svelte";
+    import { translations } from '../../../../utils/translationUtils.js';
+    
+    /** @type {{ [key: string]: any }} */
+    $: lang = $translations;
 
     const dispatch = createEventDispatcher()
 
@@ -11,7 +15,7 @@
 </script>
 
 <div class="tab-wrapper">
-    <h1 class="title">Server Type</h1>
+    <h1 class="title">{lang.servers.custom.create.type.title}</h1>
     <!-- svelte-ignore a11y-click-events-have-key-events -->
     <h1 class="before-button" on:click={() => dispatch('back')}>&lt;-</h1>
     <div class="types row">
@@ -37,7 +41,6 @@
     }
 
     .title {
-        font-family: 'Press Start 2P', serif;
         font-size: 30px;
         text-align: center;
         margin-bottom: 1em;
@@ -51,7 +54,6 @@
     }
 
     h1 {
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         margin-bottom: 0.8em;
         cursor: default;
@@ -63,8 +65,7 @@
     }
 
     .type {
-        font-family: 'Press Start 2P', serif;
-        gap: 1em;
+            gap: 1em;
         font-size: 14px;
         background-color: var(--background-contrast-color);
         width: min-content;
@@ -94,7 +95,6 @@
 
     .before-button {
         position: absolute;
-        font-family: 'Press Start 2P', serif;
         font-size: 30px;
         text-align: center;
         cursor: pointer;
@@ -103,7 +103,6 @@
 
     .next-button {
         position: absolute;
-        font-family: 'Press Start 2P', serif;
         font-size: 30px;
         margin-top: 60%;
         margin-left: 82.5%;

@@ -1,13 +1,23 @@
 <script>
   import { createEventDispatcher } from "svelte";
+  import { openInfoPopup } from "../../../utils/popupUtils";
   const dispatch = createEventDispatcher();
 
   export let value;
   export let text;
-  export let isDevOnly = false;
+  export let info = "";
+  export let isExclusive = false;
+  export let isExclusiveLabel = "";
   export let reversed = false;
   export let spaced = false;
   export let id = "";
+
+  function openInfo() {
+    openInfoPopup({
+      title: text,
+      content: info
+    })
+  }
 
   function preventSelection(event) {
     event.preventDefault();
@@ -17,8 +27,8 @@
 <div class="wrapper" class:spaced={spaced}>
   {#if reversed}
     <h1 on:selectstart={preventSelection} on:mousedown={preventSelection} class="nes-font">{text}</h1>
-    {#if isDevOnly}
-      <h1 class="nes-font devOnly" title="You can see this because you are a Developer / Admin.">(Dev Only)</h1>
+    {#if isExclusive}
+      <h1 class="nes-font exclusive" title="You can see this because you have special permissions.">({isExclusiveLabel})</h1>
     {/if}
   {/if}
   <label class="nes-switch">
@@ -27,9 +37,13 @@
   </label>
   {#if !reversed}
     <h1 on:selectstart={preventSelection} on:mousedown={preventSelection} class="nes-font">{text}</h1>
-    {#if isDevOnly}
-      <h1 class="nes-font devOnly" title="You can see this because you are a Developer / Admin.">(Dev)</h1>
+    {#if isExclusive}
+      <h1 class="nes-font exclusive" title="You can see this because you have special permissions.">({isExclusiveLabel})</h1>
     {/if}
+  {/if}
+  {#if info.length > 0}
+    <!-- svelte-ignore a11y-click-events-have-key-events -->
+    <h1 class="info" on:click={openInfo} title={info}>ⓘ</h1>
   {/if}
 </div>
 
@@ -40,7 +54,15 @@
         gap: 1em;
     }
 
-    .devOnly {
+    .info {
+      margin-left: 1em;
+      font-size: 17px;
+      cursor: pointer;
+      color: var(--font-color);
+      text-shadow: 1.5px 1.5px var(--font-color-text-shadow);
+    }
+
+    .exclusive {
       font-size: 12.5px;
       color: var(--dev-font-color);
       text-shadow: 1.25px 1.25px var(--dev-font-color-text-shadow);
@@ -52,7 +74,6 @@
     }
 
     .nes-font {
-        font-family: 'Press Start 2P', serif;
         font-size: 14px;
         cursor: default;
     }

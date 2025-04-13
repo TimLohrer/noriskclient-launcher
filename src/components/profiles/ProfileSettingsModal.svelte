@@ -4,6 +4,10 @@
   import { openConfirmPopup } from "../../utils/popupUtils.js";
   import { noriskLog } from "../../utils/noriskUtils.js";
   import { addNotification } from "../../stores/notificationStore.js";
+  import { translations } from '../../utils/translationUtils.js';
+    
+  /** @type {{ [key: string]: any }} */
+  $: lang = $translations;
 
   const dispatch = createEventDispatcher()
 
@@ -17,20 +21,18 @@
     if (!createMode) {
         saveData()
     }
-    showModal = false;
+    animateOut();
   }
 
-  const ILLIGAL_CHARACTERS = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
+  const ILLEGAL_CHARACTERS = ['/', '\\', ':', '*', '?', '"', '<', '>', '|'];
 
-  let dialog; // HTMLDialogElement
-
-  $: if (dialog && showModal) dialog.showModal();
+  let animateOutNow = false;
 
   async function saveData() {
     if (settingsProfile.name == '') {
         settingsProfile.name = "Empty Name?";
-    } else if (settingsProfile.name.split('').some(c => ILLIGAL_CHARACTERS.includes(c))) {
-        addNotification("Profile name contains illegal characters.", "ERROR");
+    } else if (settingsProfile.name.split('').some(c => ILLEGAL_CHARACTERS.includes(c))) {
+        addNotification(lang.profiles.notification.illegalCharacterError, "ERROR");
         return;
     }
     if (experimentalMode) {
@@ -43,9 +45,10 @@
   }
 
   function confirmDelete() {
+    animateOut();
     openConfirmPopup({
-      title: "Delete Profile",
-      content: "Are you sure you want to delete this profile?",
+      title: lang.profiles.modal.delete.title,
+      content: lang.profiles.modal.delete.content,
       onConfirm: deleteProfile
     });
   }
@@ -54,20 +57,20 @@
     noriskLog(`DELETING PROFILE: ${settingsProfile.name} (${settingsProfile.branch})`);
     if (experimentalMode) {
         launcherProfiles.experimentalProfiles.splice(launcherProfiles.experimentalProfiles.indexOf(settingsProfile), 1);
-        launcherProfiles.selectedExperimentalProfiles[settingsProfile.branch] = launcherProfiles.experimentalProfiles[0].id;
+        launcherProfiles.selectedExperimentalProfiles[settingsProfile.branch] = launcherProfiles.experimentalProfiles.filter(p => p.branch == settingsProfile.branch)[0].id;
     } else {
         launcherProfiles.mainProfiles.splice(launcherProfiles.mainProfiles.indexOf(settingsProfile), 1);
-        launcherProfiles.selectedMainProfiles[settingsProfile.branch] = launcherProfiles.mainProfiles[0].id;
+        launcherProfiles.selectedMainProfiles[settingsProfile.branch] = launcherProfiles.mainProfiles.filter(p => p.branch == settingsProfile.branch)[0].id;
     }
     closeSettings();
-    addNotification(`Profile "${settingsProfile.name}" has been deleted.`, "INFO");
+    addNotification(lang.profiles.notification.delete.success.replace("{profile}", settingsProfile.name), "INFO");
     dispatch('update');
   }
 
   async function createProfile() {
     if (settingsProfile.name == '' || settingsProfile.name.toLowerCase() == `${settingsProfile.branch} - Default`.toLowerCase()) return;
-    if (settingsProfile.name.split('').some(c => ILLIGAL_CHARACTERS.includes(c))) {
-        addNotification("Profile name contains illegal characters.", "ERROR");
+    if (settingsProfile.name.split('').some(c => ILLEGAL_CHARACTERS.includes(c))) {
+        addNotification(lang.profiles.notification.illegalCharacterError, "ERROR");
         return;
     }
     noriskLog(`CREATING PROFILE: ${settingsProfile.name} (${settingsProfile.branch})`);
@@ -80,8 +83,15 @@
     }
     launcherProfiles.store();
     closeSettings();
-    addNotification(`Profile "${settingsProfile.name}" has been created.`, "INFO");
+    addNotification(lang.profiles.notification.create.success.replace("{profile}", settingsProfile.name), "INFO");
     dispatch('update');
+  }
+
+  function animateOut() {
+    animateOutNow = true;
+    setTimeout(() => {
+      showModal = false;
+    }, 100);
   }
 
   function preventSelection(event) {
@@ -90,51 +100,56 @@
 </script>
 
 <!-- svelte-ignore a11y-click-events-have-key-events -->
-<dialog
-  bind:this={dialog}
-  on:close={closeSettings}
-  on:click|self={() => dialog.close()}
->
-  <div on:click|stopPropagation class="divider">
-    <div>
-      <div class="header-wrapper">
+{#if showModal}
+  <div class="overlay" on:click={animateOut}>
+
+    <div
+      class:animateOut={animateOutNow}
+      class:animateIn={!animateOutNow}
+      class="dialog"
+    >
+      <div on:click|stopPropagation class="divider">
+        <div>
+          <div class="header-wrapper">
+            {#if createMode}
+              <h1 class="title" on:selectstart={preventSelection} on:mousedown={preventSelection}>{lang.profiles.modal.create.title}</h1>
+            {:else}
+              <h1 class="title" on:selectstart={preventSelection} on:mousedown={preventSelection}>{lang.profiles.modal.edit.title}</h1>
+            {/if}
+            <h1 class="nes-font red-text-clickable close-button" on:click={closeSettings}>X</h1>
+          </div>
+          <hr>
+          <div class="settings-wrapper">
+            <ConfigTextInput title={lang.profiles.modal.name} bind:value={settingsProfile.name} />
+            <ConfigTextInput title={lang.profiles.modal.branch} bind:value={settingsProfile.branch} disabled={true} />
+          </div>
+        </div>
+        <!-- svelte-ignore a11y-autofocus -->
         {#if createMode}
-          <h1 class="title" on:selectstart={preventSelection} on:mousedown={preventSelection}>CREATE PROFILE</h1>
+          <div class="create-profile-button-wrapper">
+            <p class="green-text" on:selectstart={preventSelection} on:mousedown={preventSelection} on:click={createProfile}>{lang.profiles.modal.button.create}</p>
+          </div>
         {:else}
-          <h1 class="title" on:selectstart={preventSelection} on:mousedown={preventSelection}>PROFILE SETTINGS</h1>
+          <div class="delete-profile-button-wrapper">
+            <p class="red-text" on:selectstart={preventSelection} on:mousedown={preventSelection} on:click={confirmDelete}>{lang.profiles.modal.button.delete}</p>
+          </div>
         {/if}
-        <h1 class="nes-font red-text-clickable close-button" on:click={closeSettings}>X</h1>
-      </div>
-      <hr>
-      <div class="settings-wrapper">
-        <ConfigTextInput title="Name" bind:value={settingsProfile.name} />
-        <ConfigTextInput title="Branch" bind:value={settingsProfile.branch} disabled={true} />
       </div>
     </div>
-    <!-- svelte-ignore a11y-autofocus -->
-    {#if createMode}
-      <div class="create-profile-button-wrapper">
-        <p class="green-text" on:selectstart={preventSelection} on:mousedown={preventSelection} on:click={createProfile}>CREATE</p>
-      </div>
-    {:else}
-      <div class="delete-profile-button-wrapper">
-        <p class="red-text" on:selectstart={preventSelection} on:mousedown={preventSelection} on:click={confirmDelete}>DELETE PROFILE</p>
-      </div>
-    {/if}
   </div>
-</dialog>
+{/if}
 
 <style>
     .header-wrapper {
         display: flex;
         flex-direction: row;
         justify-content: space-between;
+        align-items: center;
         padding: 1em;
     }
 
     .header-wrapper .title {
-        font-family: 'Press Start 2P', serif;
-        font-size: 22.5px;
+        font-size: 20px;
         user-select: none;
         cursor: default;
     }
@@ -163,7 +178,15 @@
         padding: 1em;
     }
 
-    dialog {
+    .overlay {
+        position: fixed;
+        width: 100%;
+        height: 100%;
+        background-color: rgba(0, 0, 0, 0.2);
+        z-index: 999998;
+    }
+
+    .dialog {
         background-color: var(--background-color);
         border: 5px solid black;
         width: 34em;
@@ -174,18 +197,19 @@
         top: 50%; /* 50% von oben */
         left: 50%; /* 50% von links */
         transform: translate(-50%, -50%); /* Verschiebung um die Hälfte der eigenen Breite und Höhe */
+        z-index: 999999;
     }
 
-    dialog::backdrop {
-        background: rgba(0, 0, 0, 0.3);
-    }
-
-    dialog > div {
+    .dialog > div {
         padding: 1em;
     }
 
-    dialog[open]::backdrop {
-        animation: fade 0.2s ease-out;
+    .dialog.animateIn {
+        animation: open 0.2s ease-out;
+    }
+
+    .dialog.animateOut {
+        animation: close 0.2s ease-out;
     }
 
     @keyframes fade {
@@ -197,8 +221,29 @@
         }
     }
 
+    @keyframes open {
+        from {
+            transform: translate(-50%, 200%);
+            opacity: 0;
+        }
+        to {
+            transform: translate(-50%, -50%);
+            opacity: 1;
+        }
+    }
+
+    @keyframes close {
+        from {
+            transform: translate(-50%, -50%);
+            opacity: 1;
+        }
+        to {
+            transform: translate(-50%, 200%);
+            opacity: 0;
+        }
+    }
+
     .nes-font {
-        font-family: 'Press Start 2P', serif;
         font-size: 30px;
         user-select: none;
         cursor: default;
@@ -213,7 +258,6 @@
       }
       
       .create-profile-button-wrapper p {
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         padding: 0.3em;
         cursor: pointer;
@@ -229,7 +273,6 @@
         align-content: center;
         align-items: center;
         justify-content: center;
-        font-family: 'Press Start 2P', serif;
         font-size: 18px;
         padding: 1em;
         text-shadow: 2px 2px #6e0000;

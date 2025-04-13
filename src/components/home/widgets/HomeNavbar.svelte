@@ -2,65 +2,95 @@
   import { branches } from "../../../stores/branchesStore.js";
   import { defaultUser } from "../../../stores/credentialsStore.js";
   import { get } from "svelte/store";
+  import AccountModal from "../../account/AccountModal.svelte";
   import { push } from "svelte-spa-router";
-  import { appWindow } from "@tauri-apps/api/window";
+  import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
   import { onMount } from "svelte";
-  import { invoke } from "@tauri-apps/api";
+  import { invoke } from "@tauri-apps/api/core";
   import { getNoRiskToken, noriskLog, getFeatureWhitelist, featureWhitelist, getNoRiskUser } from "../../../utils/noriskUtils.js";
   import { openInputPopup } from "../../../utils/popupUtils.js";
   import { addNotification } from "../../../stores/notificationStore.js";
+  import { translations } from '../../../utils/translationUtils.js';
+  import { slide } from "svelte/transition";
+const appWindow = getCurrentWebviewWindow()
+
+  /** @type {{ [key: string]: any }} */
+  $: lang = $translations;
 
   let friendInviteSlots = {};
+  let showAccountModal = false;
 
   let navItems = [];
+  let hovered;
 
   function updateNavItems() {
     navItems = [
       {
-        name: "LEGAL-INFO",
+        name: lang.home.navbar.button.legalInfo,
         onClick: () => push("/legal"),
         condition: () => true,
+        submenues: []
       },
       {
-        name: "SETTINGS",
+        name: lang.home.navbar.button.settings,
         onClick: () => push("/launcher-settings"),
-        condition: true
+        condition: true,
+        submenues: []
       },
       {
-        name: "PROFILES",
+        name: lang.home.navbar.button.accounts,
+        onClick: () => showAccountModal = true,
+        condition: () => true,
+        submenues: []
+      },
+      {
+        name: lang.home.navbar.button.profiles,
         onClick: () => push("/profiles"),
         condition: () => get(branches).length > 0 && get(defaultUser) != null,
+        submenues: []
       },
       {
-        name: "SERVERS",
+        name: lang.home.navbar.button.servers,
         onClick: () => push("/servers"),
         condition: () => get(branches).length > 0 && get(defaultUser) != null,
+        submenues: []
       },
       {
-        name: "ADDONS",
+        name: lang.home.navbar.button.addons,
         onClick: () => push("/addons"),
         condition: () => get(branches).length > 0 && get(defaultUser) != null,
+        submenues: [
+          {
+            name: lang.home.navbar.button.mods,
+            onClick: () => push("/addons/mods"),
+            condition: () => get(branches).length > 0 && get(defaultUser) != null,
+          }
+        ]
       },
       {
-        name: "INVITE",
+        name: lang.home.navbar.button.invite,
         onClick: openInviteFriendsPopup,
         condition: () => get(branches).length > 0 && get(defaultUser) != null && $featureWhitelist.includes("INVITE_FRIENDS") && friendInviteSlots.availableSlots == -1,
+        submenues: []
       },
       {
-        name: "CAPES",
+        name: lang.home.navbar.button.capes,
         onClick: () => push("/capes"),
         condition: () => get(branches).length > 0 && get(defaultUser) != null,
+        submenues: []
       },
       {
-        name: "SKIN",
+        name: lang.home.navbar.button.skin,
         onClick: () => push("/skin"),
         condition: () => get(branches).length > 0 && get(defaultUser) != null,
+        submenues: []
       },
       {
-        name: "QUIT",
+        name: lang.home.navbar.button.quit,
         onClick: () => appWindow.close(),
         condition: true,
         className: "quit",
+        submenues: []
       },
     ];
   }
@@ -73,9 +103,9 @@
 
     const userUnlisten = defaultUser.subscribe(async value => {
       updateNavItems();
-      await fetchFeatures();
       await getNoRiskUser();
-      updateNavItems();
+        await fetchFeatures();
+        updateNavItems();
     });
 
     return () => {
@@ -85,14 +115,16 @@
   });
 
   async function fetchFeatures() {
+    friendInviteSlots = {};
     await getFeatureWhitelist();
 
-    if ($featureWhitelist.includes("INVITE_FRIENDS")) {
+    if ($featureWhitelist.includes("INVITE_FRIENDS") === true) {
       await loadFriendInvites();
     }
   }
 
   async function loadFriendInvites() {
+    friendInviteSlots = {};
     if (!$defaultUser) return;
     await invoke("get_whitelist_slots", {
       noriskToken: getNoRiskToken(),
@@ -109,40 +141,53 @@
 
   function openInviteFriendsPopup() {
     openInputPopup({
-      title: "Invite Friends",
-      content: `You have ${friendInviteSlots.text} invites left.\nYou can use them to invite a friend to the NRC closed beta.`,
-      inputPlaceholder: "Username / UUID",
-      confirmButton: "Invite",
-      validateInput: (input) => input.length > 2 && input.length <= 16,
-      onConfirm: async (identifier) => {        
-        await invoke("add_player_to_whitelist", {
-          identifier: identifier,
-          noriskToken: getNoRiskToken(),
-          requestUuid: $defaultUser.id,
-        }).then(() => {
-          addNotification("Successfully invited " + identifier + " to the NRC closed beta!", "INFO");
-        }).catch((error) => {
-          addNotification("An error occurred while inviting " + identifier + " to the NRC closed beta: " + error);
-        });
+      title: lang.home.navbar.popup.inviteFriends.title,
+      content: lang.home.navbar.popup.inviteFriends.content.replace("{slots}", friendInviteSlots.text),
+      inputPlaceholder: lang.home.navbar.popup.inviteFriends.inputPlaceholder,
+      confirmButton: lang.home.navbar.popup.inviteFriends.confirmButton,
+      height: 22,
+      contentFontSize: 14,
+      validateInput: (input) => input.length > 2 && (input.length <= 16 || input.length == 36),
+      onConfirm: async (identifier) => {
+          await invoke("add_player_to_whitelist", {
+              identifier: identifier,
+              noriskToken: getNoRiskToken(),
+              requestUuid: $defaultUser.id,
+          }).then(async () => {
+              addNotification(lang.home.navbar.notification.invite.success.replace("{user}", identifier), "INFO");
+              await loadFriendInvites();
+          }).catch((error) => {
+              addNotification(lang.home.navbar.notification.invite.error.replace("{user}", identifier).replace("{error}", error));
+          });
       }
     })
   }
 </script>
 
+<AccountModal bind:showModal={showAccountModal} />
 <div class="container">
   <div class="home-navbar-wrapper topleft">
     {#if $featureWhitelist.includes("INVITE_FRIENDS") && friendInviteSlots.availableSlots !== -1 && friendInviteSlots.availableSlots - friendInviteSlots.previousInvites > 0}
       <!-- svelte-ignore a11y-click-events-have-key-events -->
       <h1 class="invite-button" on:click={openInviteFriendsPopup}>
-        <p>✨ INVITE ✨</p>
+        <p>{lang.home.navbar.button.inviteFeature}</p>
       </h1>
     {/if}
     {#each navItems as item (item.name)}
       {#if typeof item.condition === 'function' ? item.condition() : item.condition}
         <!-- svelte-ignore a11y-click-events-have-key-events -->
-        <h1 class={item.className || ''} on:click={item.onClick}>
-          {item.name}
-        </h1>
+        <div on:mouseenter={() => hovered = item.name} on:mouseleave={() => hovered = null}>
+          <h1 class={item.className || ''} on:click={item.onClick}>
+            {item.name}
+          </h1>
+          {#if hovered === item.name}
+            {#each item.submenues as submenu}
+              <h2 class={submenu.className || ''} on:click={submenu.onClick} transition:slide={{ duration: 100 }}>
+                {submenu.name}
+              </h2>
+            {/each}
+          {/if}
+        </div>
       {/if}
     {/each}
   </div>
@@ -163,24 +208,39 @@
   }
 
   .home-navbar-wrapper {
-    width: 50%;
     position: absolute;
     padding: 10px;
     display: flex;
     flex-direction: column;
-    align-items: end;
+    align-items: flex-end;
+    width: 50%;
+    text-align: right;
     pointer-events: all;
     overflow: hidden;
   }
 
   .home-navbar-wrapper h1 {
     font-size: 11px;
-    font-family: 'Press Start 2P', serif;
     margin-bottom: 1em;
     cursor: pointer;
     color: var(--secondary-color);
     text-shadow: 1px 1px var(--secondary-color-text-shadow);
     transition: transform 0.3s, color 0.25s, text-shadow 0.25s;
+  }
+
+  .home-navbar-wrapper h2 {
+      font-size: 11px;
+      margin-bottom: 1em;
+      cursor: pointer;
+      color: var(--secondary-color);
+      text-shadow: 1px 1px var(--secondary-color-text-shadow);
+      transition: transform 0.3s, color 0.25s, text-shadow 0.25s;
+  }
+
+  .home-navbar-wrapper h2:hover {
+      color: var(--hover-color);
+      text-shadow: 1px 1px var(--hover-color-text-shadow);
+      transform: scale(1.2) translateX(-10px) perspective(1px);
   }
 
   .home-navbar-wrapper h1:hover {
@@ -203,6 +263,8 @@
   }
 
   .home-navbar-wrapper h1.invite-button p {
+    color: var(--hover-text-shadow);
+    text-shadow: 1px 1px var(--secondary-color-text-shadow);
     margin-bottom: 5px;
     padding-right: 5px;
     font-size: 15px;
