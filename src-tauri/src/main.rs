@@ -55,6 +55,10 @@ use commands::config_commands::{
     get_launcher_config, set_launcher_config
 };
 
+use commands::updater_commands::{
+    has_internet_connection, check_nrc_online_status, close_updater, open_updater
+};
+
 // Import path commands
 use commands::path_commands::{
     get_launcher_directory, resolve_image_path
@@ -154,6 +158,7 @@ async fn main() {
         .setup(|app| {
             // Initialize the state
             let app_handle = Arc::new(app.handle().clone());
+            let app_handle_for_updater = app_handle.clone();
 
             tauri::async_runtime::spawn(async move {
                 let _ = norisk_versions::load_dummy_versions().await;
@@ -162,11 +167,18 @@ async fn main() {
                 if let Err(e) = state::state_manager::State::init(app_handle).await {
                     error!("Failed to initialize state: {}", e);
                 }
+
+                let _ = open_updater((*app_handle_for_updater).clone()).await;
             });
+
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            has_internet_connection,
+            check_nrc_online_status,
+            open_updater,
+            close_updater,
             create_profile,
             get_profile,
             update_profile,

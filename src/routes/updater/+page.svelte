@@ -1,84 +1,84 @@
 <script lang="ts">
-	import { relaunch } from '@tauri-apps/plugin-process';
-	import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
-  import { invoke } from '@tauri-apps/api/core';
-  import { onMount } from "svelte";
-  import { check } from "@tauri-apps/plugin-updater";
-  import Logo from "$lib/images/norisk_logo.png";
-  import OfflineLogo from "$lib/images/norisk_logo_dead.png";
-  const appWindow = getCurrentWebviewWindow()
+    import { relaunch } from '@tauri-apps/plugin-process';
+    import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
+    import { invoke } from '@tauri-apps/api/core';
+    import { onMount } from "svelte";
+    import { check } from "@tauri-apps/plugin-updater";
+    import Logo from "$lib/images/norisk_logo.png";
+    import OfflineLogo from "$lib/images/norisk_logo_dead.png";
+    const appWindow = getCurrentWebviewWindow()
 
-  let dots = "";
-  let text: string | null = null;
-  let error = "";
-  let copyErrorButton = "Copy Error";
-  
+    let dots = "";
+    let text: string | null = null;
+    let error = "";
+    let copyErrorButton = "Copy Error";
+    
 
-  onMount(async () => {
-    animateLoadingText();
+    onMount(async () => {
+		animateLoadingText();
 
-    let hasConnection = false;
-    hasConnection = await invoke("has_internet_connection");
-    console.log(`Has internet connection: ${hasConnection}`);
+		let hasConnection = false;
+		hasConnection = await invoke("has_internet_connection");
+		console.log(`Has internet connection: ${hasConnection}`);
 
-    text = hasConnection ? "Checking for Updates" : null;
-    if (!hasConnection) return appWindow.show();
+		text = hasConnection ? "Checking for Updates" : null;
+		if (!hasConnection) return appWindow.show();
 
-    try {
-      const update = await check();
+		try {
+			const update = await check();
 
-      if (update != null) {
-        appWindow.show();
-        console.log(`Installing update: ${update.rawJson}`);
-        text = "Installing Update";
+			if (update != null) {
+			appWindow.show();
+			console.log(`Installing update: ${update.rawJson}`);
+			text = "Installing Update";
 
-        return;
-        // Install the update. This will also restart the app on Windows!
-        // await installUpdate().catch(reason => {
-        //   noriskError(reason);
-        // });
-        console.log(`Update was installed`);
-        text = "Restarting";
+			return;
+			// Install the update. This will also restart the app on Windows!
+			// await installUpdate().catch(reason => {
+			//   noriskError(reason);
+			// });
+			console.log(`Update was installed`);
+			text = "Restarting";
 
-        console.log(`Trying to relaunch`);
+			console.log(`Trying to relaunch`);
 
-        await relaunch().catch(reason => {
-          console.error(reason);
-        });
-      } else {
-        console.log(`No updates available`);
-        text = "";
-        if (error.trim() == "") {
-          await invoke("close_updater").then(() => {
-            console.log(`updater closed -> Main window shown`);
-          }).catch(reason => {
-            console.error(`Failed to close updater / show main window: ${reason}`);
-          });
-        } else {
-          appWindow.show();
-        }
-      }
-    } catch (error) {
-      console.error(error);
+			await relaunch().catch(reason => {
+				console.error(reason);
+			});
+			} else {
+			console.log(`No updates available`);
+			text = "";
+			if (error.trim() == "") {
+				await invoke("close_updater").then(() => {
+				console.log(`updater closed -> Main window shown`);
+				}).catch(reason => {
+				console.error(`Failed to close updater / show main window: ${reason}`);
+				});
+			} else {
+				appWindow.show();
+			}
+			}
+		} catch (error) {
+			console.error(error);
+		}
+    });
+
+    function animateLoadingText() {
+        return setInterval(function() {
+            dots += ".";
+            if (dots.length > 3) {
+              	dots = "";
+            }
+        }, 500);
     }
-  });
 
-  function animateLoadingText() {
-    return setInterval(function() {
-      dots += ".";
-      if (dots.length > 3) {
-        dots = "";
-      }
-    }, 500);
-  }
-
-  function copyError() {
-    navigator.clipboard.writeText(error);
-    copyErrorButton = "Copied!";
-    setTimeout(() => {
-      copyErrorButton = "Copy Error";
-    }, 1000);
-  }
+    function copyError() {
+        navigator.clipboard.writeText(error);
+        copyErrorButton = "Copied!";
+        setTimeout(() => {
+            copyErrorButton = "Copy Error";
+        }, 1000);
+    }
 </script>
 
 <!-- svelte-ignore element_invalid_self_closing_tag -->
@@ -108,8 +108,8 @@
 
 <style>
   .container {
-    height: 100vh;
-    width: 100vw;
+    height: 380px;
+    width: 400px;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -119,8 +119,8 @@
 
   .drag-overlay {
     position: absolute;
-    height: 100%;
-    width: 100%;
+    height: 380px;
+    width: 400px;
     z-index: 100;
     background-color: transparent;
   }
@@ -131,7 +131,7 @@
     align-items: center;
     flex-direction: column;
     height: 70%;
-    width: 100%;
+    width: 400px;
   }
 
   img {
@@ -146,12 +146,6 @@
     0% { transform: scale(1.0); }
     50% { transform: scale(1.05); }
     100% { transform: scale(1.0); -webkit-mask-position:left }
-  }
-
-  .branch-font {
-    font-family: 'Press Start 2P', serif;
-    font-size: 14px;
-    margin-top: 2em;
   }
 
   .offline {

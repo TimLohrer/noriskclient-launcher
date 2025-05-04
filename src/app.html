@@ -11,11 +11,28 @@
 	<body class="window" data-sveltekit-preload-data="hover">
 		<div style="display: contents">%sveltekit.body%</div>
 	</body>
+	<script context="module">
+		import { page } from '$app/stores';
+		import { afterUpdate } from 'svelte';
+		let currentRoute = $page.url.pathname;
+		afterUpdate(() => {
+			if (currentRoute !== $page.url.pathname) {
+				currentRoute = $page.url.pathname;
+				window.scrollTo(0, 0);
+			}
+
+			if (currentRoute === '/updater') {
+				document.getElementsByClassName('window')[0].style.width = '400px';
+				document.getElementsByClassName('window')[0].style.height = '380px';
+			} else {
+				document.getElementsByClassName('window')[0].style.width = '1200px';
+				document.getElementsByClassName('window')[0].style.height = '800px';
+			}
+		});
+	</script>
 	<style>
 		.window {
 			display: flex;
-			width: 1200px;
-			height: 800px;
 
 			/* Disable text selection. */
 			-webkit-user-select: none; /* Safari */
