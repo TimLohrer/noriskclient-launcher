@@ -7,12 +7,10 @@ use crate::minecraft::downloads::mc_assets_download::MinecraftAssetsDownloadServ
 use crate::minecraft::downloads::mc_client_download::MinecraftClientDownloadService;
 use crate::minecraft::downloads::mc_libraries_download::MinecraftLibrariesDownloadService;
 use crate::minecraft::downloads::mc_natives_download::MinecraftNativesDownloadService;
-use crate::minecraft::downloads::{ModDownloadService, NoriskClientAssetsDownloadService};
 use crate::minecraft::downloads::NoriskPackDownloadService;
+use crate::minecraft::downloads::{ModDownloadService, NoriskClientAssetsDownloadService};
 use crate::minecraft::dto::JavaDistribution;
-use crate::minecraft::{
-    MinecraftLaunchParameters, MinecraftLauncher,
-};
+use crate::minecraft::{MinecraftLaunchParameters, MinecraftLauncher};
 use crate::state::event_state::{EventPayload, EventType};
 use crate::state::profile_state::{ModLoader, Profile};
 use crate::state::state_manager::State;
@@ -21,9 +19,7 @@ use uuid::Uuid;
 
 use super::minecraft_auth::Credentials;
 use super::modloader::ModloaderFactory;
-use crate::minecraft::downloads::{
-    MinecraftLoggingDownloadService,
-};
+use crate::minecraft::downloads::MinecraftLoggingDownloadService;
 
 async fn emit_progress_event(
     state: &State,
@@ -109,7 +105,7 @@ pub async fn install_minecraft_version(
         &state,
         EventType::InstallingJava,
         profile.id,
-        &format!("Java {} wird installiert...", java_version),
+        &format!("Installing Java {}...", java_version),
         0.0,
         None,
     )
@@ -131,7 +127,7 @@ pub async fn install_minecraft_version(
         &state,
         EventType::InstallingJava,
         profile.id,
-        &format!("Java {} Installation abgeschlossen!", java_version),
+        &format!("Finished installing Java {}!", java_version),
         1.0,
         None,
     )
@@ -148,7 +144,7 @@ pub async fn install_minecraft_version(
         &state,
         EventType::DownloadingLibraries,
         profile.id,
-        "Libraries werden heruntergeladen...",
+        "Downloading libraries...",
         0.0,
         None,
     )
@@ -167,7 +163,7 @@ pub async fn install_minecraft_version(
         &state,
         EventType::DownloadingLibraries,
         profile.id,
-        "Libraries Download abgeschlossen!",
+        "Finished downloading libraries!",
         1.0,
         None,
     )
@@ -178,7 +174,7 @@ pub async fn install_minecraft_version(
         &state,
         EventType::ExtractingNatives,
         profile.id,
-        "Natives werden extrahiert...",
+        "Extracting natives...",
         0.0,
         None,
     )
@@ -195,7 +191,7 @@ pub async fn install_minecraft_version(
         &state,
         EventType::ExtractingNatives,
         profile.id,
-        "Natives Extraktion abgeschlossen!",
+        "Finished extrating natives!",
         1.0,
         None,
     )
@@ -211,15 +207,15 @@ pub async fn install_minecraft_version(
 
     // Download NoRiskClient assets if profile has a selected pack
     info!("\nDownloading NoRiskClient assets...");
-    
+
     let norisk_assets_service = NoriskClientAssetsDownloadService::new()
         .with_concurrent_downloads(launcher_config.concurrent_downloads);
-    
+
     // Download assets for this profile - progress events are now handled internally
     norisk_assets_service
         .download_nrc_assets_for_profile(&profile, credentials.as_ref(), is_experimental_mode)
         .await?;
-        
+
     info!("NoRiskClient Asset download completed!");
 
     // Emit client download event
@@ -227,7 +223,7 @@ pub async fn install_minecraft_version(
         &state,
         EventType::DownloadingClient,
         profile.id,
-        "Minecraft Client wird heruntergeladen...",
+        "Downloading Minecraft Client...",
         0.0,
         None,
     )
@@ -244,7 +240,7 @@ pub async fn install_minecraft_version(
         &state,
         EventType::DownloadingClient,
         profile.id,
-        "Minecraft Client Download abgeschlossen!",
+        "Minecraft Client download completed!",
         1.0,
         None,
     )
@@ -359,10 +355,7 @@ pub async fn install_minecraft_version(
                 &state,
                 EventType::DownloadingMods,
                 profile.id,
-                &format!(
-                    "Downloading Norisk Pack '{}' Mods... (Phase 2)",
-                    selected_pack_id
-                ),
+                "Downloading Norisk Pack Mods... (Phase 2)",
                 0.0,
                 None,
             )
@@ -395,10 +388,7 @@ pub async fn install_minecraft_version(
                         &state,
                         EventType::DownloadingMods,
                         profile.id,
-                        &format!(
-                            "Norisk Pack '{}' Mods downloaded successfully! (Phase 2)",
-                            selected_pack_id
-                        ),
+                        "Norisk Pack Mods downloaded successfully! (Phase 2)",
                         1.0,
                         None,
                     )
@@ -413,7 +403,7 @@ pub async fn install_minecraft_version(
                         &state,
                         EventType::DownloadingMods,
                         profile.id,
-                        &format!("Error downloading Norisk Pack '{}' mods!", selected_pack_id),
+                        "Error downloading Norisk Pack mods!",
                         1.0,
                         Some(e.to_string()),
                     )
@@ -535,19 +525,21 @@ pub async fn install_minecraft_version(
         &state,
         EventType::LaunchingMinecraft,
         profile.id,
-        "Minecraft wird gestartet...",
+        "Starting Minecraft...",
         0.0,
         None,
     )
     .await?;
 
-    launcher.launch(&piston_meta, launch_params, Some(profile.clone())).await?;
+    launcher
+        .launch(&piston_meta, launch_params, Some(profile.clone()))
+        .await?;
 
     emit_progress_event(
         &state,
         EventType::LaunchingMinecraft,
         profile.id,
-        "Minecraft wurde gestartet!",
+        "Minecraft started!",
         1.0,
         None,
     )

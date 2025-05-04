@@ -20,7 +20,7 @@
             >
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div class="info" onclick={() => selectAccount(account.id)}>
-                    <img src={account.id == 'ADD_ACCOUNT' ? NoUserSkinHeadDark : `https://crafatar.com/avatars/${account.id}`} alt="Account Avatar" class="avatar" />
+                    <img src={account.id == lang.settings.accounts.modal.dummy_account_id ? NoUserSkinHeadDark : `https://crafatar.com/avatars/${account.id}`} alt="Account Avatar" class="avatar" />
                     <p class="name" style={account.username.length > 12 ? 'font-size: 35px;' : 'font-size: 40px;'}>{account.username.toLowerCase()}</p>
                 </div>
                 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->

@@ -1,66 +1,107 @@
 <script lang="ts">
+	import { language, setLanguage, translations } from './../../lib/utils/translationUtils';
     import { relaunch } from '@tauri-apps/plugin-process';
     import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
     import { invoke } from '@tauri-apps/api/core';
     import { onMount } from "svelte";
-    import { check } from "@tauri-apps/plugin-updater";
+    import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
+	import type { Update } from "@tauri-apps/plugin-updater";
     import Logo from "$lib/images/norisk_logo.png";
-    import OfflineLogo from "$lib/images/norisk_logo_dead.png";
     const appWindow = getCurrentWebviewWindow()
+
+	$: lang = $translations;
 
     let dots = "";
     let text: string | null = null;
     let error = "";
-    let copyErrorButton = "Copy Error";
-    
+    let copyErrorButton = "";
+
+	let update: Update | null = null;
+	let updateDownloadSize = 0;
+	let updateDownloadProgress = 0;
+
+	function handleDownloadEvent(event: DownloadEvent) {
+		if (event.event === 'Started') {
+			updateDownloadSize = event.data.contentLength ?? 0;
+		} else if (event.event === 'Progress') {
+			updateDownloadProgress = event.data.chunkLength;
+		} else if (event.event === 'Finished') {
+			console.log('Download finished!');
+			updateDownloadProgress = 0;
+			updateDownloadSize = 0;
+		}
+	}
+
+	function ignore() {
+		invoke("close_updater").then(() => {
+			console.log(`updater closed -> Main window shown`);
+		}).catch(reason => {
+			console.error(`Failed to close updater / show main window: ${reason}`);
+		});
+	}
 
     onMount(async () => {
+		setLanguage($language);
 		animateLoadingText();
 
-		let hasConnection = false;
-		hasConnection = await invoke("has_internet_connection");
-		console.log(`Has internet connection: ${hasConnection}`);
-
-		text = hasConnection ? "Checking for Updates" : null;
-		if (!hasConnection) return appWindow.show();
-
-		try {
-			const update = await check();
-
-			if (update != null) {
-			appWindow.show();
-			console.log(`Installing update: ${update.rawJson}`);
-			text = "Installing Update";
-
-			return;
-			// Install the update. This will also restart the app on Windows!
-			// await installUpdate().catch(reason => {
-			//   noriskError(reason);
-			// });
-			console.log(`Update was installed`);
-			text = "Restarting";
-
-			console.log(`Trying to relaunch`);
-
-			await relaunch().catch(reason => {
-				console.error(reason);
-			});
-			} else {
-			console.log(`No updates available`);
-			text = "";
-			if (error.trim() == "") {
-				await invoke("close_updater").then(() => {
-				console.log(`updater closed -> Main window shown`);
-				}).catch(reason => {
-				console.error(`Failed to close updater / show main window: ${reason}`);
-				});
-			} else {
-				appWindow.show();
+		// give 10ms time to load the language file
+		setTimeout(async () => {
+			try {
+				text = lang.updater.checking;
+				console.log(`Checking for updates...`);
+	
+				await check()
+					.then(_update => update = _update)
+					.catch(reason => {
+						console.error(reason);
+						error = reason.toString();
+						copyErrorButton = lang.updater.button.copyError;
+					});
+	
+				if (update != null) {
+					appWindow.show();
+					console.log(`Installing update: ${update.rawJson}`);
+					text = lang.updater.downloading;
+					await update.download(handleDownloadEvent).catch(reason => {
+						console.error(reason);
+						error = reason.toString();
+						copyErrorButton = lang.updater.button.copyError;
+					});
+					console.log(`Update downloaded!`);
+					text = lang.updater.installing;
+					await update.install().catch(reason => {
+						console.error(reason);
+						error = reason.toString();
+						copyErrorButton = lang.updater.button.copyError;
+					});
+					console.log(`Update was installed`);
+	
+					await relaunch().catch(reason => {
+						console.error(reason);
+						error = reason.toString();
+						copyErrorButton = lang.updater.button.copyError;
+					});
+				} else {
+					console.log(`No updates available`);
+					text = "";
+					if (error.trim() == "") {
+							await invoke("close_updater").then(() => {
+							console.log(`updater closed -> Main window shown`);
+						}).catch(reason => {
+							console.error(`Failed to close updater / show main window: ${reason}`);
+							error = reason.toString();
+							copyErrorButton = lang.updater.button.copyError;
+						});
+					} else {
+						appWindow.show();
+					}
+				}
+			} catch (error) {
+				console.error(error);
+				error = lang.updater.error;
+				copyErrorButton = lang.updater.button.copyError;
 			}
-			}
-		} catch (error) {
-			console.error(error);
-		}
+		}, 10)
     });
 
     function animateLoadingText() {
@@ -74,9 +115,9 @@
 
     function copyError() {
         navigator.clipboard.writeText(error);
-        copyErrorButton = "Copied!";
+        copyErrorButton = lang.updater.button.copied;
         setTimeout(() => {
-            copyErrorButton = "Copy Error";
+            copyErrorButton = lang.updater.button.copyError;
         }, 1000);
     }
 </script>
@@ -84,87 +125,120 @@
 <!-- svelte-ignore element_invalid_self_closing_tag -->
 <div class="drag-overlay" data-tauri-drag-region />
 <div class="container">
-  <div class="content">
-    <img style={`opacity: ${text == null ? '0.3' : '1'};`} src={text != null ? Logo : OfflineLogo} alt="NoRiskClient Logo">
-    {#if text == null}
-      <p class="branch-font offline">OFFLINE!</p>
-    {:else if error.trim() == ""}
-      <p class="branch-font primary-text">{text}{dots}</p>
-    {:else}
-      <p class="branch-font red-text">ERROR! :(</p>
-    {/if}
-  </div>
-  {#if text == null}
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <p class="copy-error red-text" on:click={() => invoke("quit")}>Exit</p>
-  <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-  {:else if error.trim() != ""}
-    <!-- svelte-ignore a11y-click-events-have-key-events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <p class="copy-error primary-text" on:click={() => copyError()}>{copyErrorButton}</p>
-  {/if}
+	<div class="content">
+		<img src={Logo} alt="NoRiskClient Logo">
+		{#if error.trim() == ""}
+			<p class="progress-text">{text}{text?.trim()?.length ?? 0 > 0 ? dots : ''}</p>
+		{:else}
+			<p class="error-text">error! :(</p>
+		{/if}
+	</div>
+	{#if error.trim() != ""}
+		<!-- svelte-ignore a11y-click-events-have-key-events -->
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div class="error-button-container">
+			<p class="copy-error" on:click={copyError}>{copyErrorButton}</p>
+			<p class="ignore" on:click={ignore}>{lang.updater.button.ignore}</p>
+		</div>
+	{/if}
 </div>
 
 <style>
-  .container {
-    height: 380px;
-    width: 400px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    cursor: default;
-  }
+	.container {
+		height: 380px;
+		width: 400px;
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		flex-direction: column;
+		cursor: default;
+	}
 
-  .drag-overlay {
-    position: absolute;
-    height: 380px;
-    width: 400px;
-    z-index: 100;
-    background-color: transparent;
-  }
+	.drag-overlay {
+		position: absolute;
+		height: 380px;
+		width: 400px;
+		z-index: 100;
+		background-color: transparent;
+	}
 
-  .content {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
-    height: 70%;
-    width: 400px;
-  }
+  	.content {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		flex-direction: column;
+		height: 70%;
+		width: 400px;
+  	}
 
-  img {
-    width: 200px;
-    height: 200px;
-    -webkit-user-drag: none;
-    -webkit-mask:linear-gradient(-60deg,#fff 40%,#0005 50%,#fff 60%) right/275% 100%; /* right/275% 100%: length and hight of mask */
-    animation: effect 3.5s infinite; /* remove infinite to trigger once */
-  }
+  	img {
+		width: 200px;
+		height: 200px;
+		-webkit-user-drag: none;
+		-webkit-mask:linear-gradient(-60deg,#fff 40%,#0005 50%,#fff 60%) right/275% 100%; /* right/275% 100%: length and hight of mask */
+		animation: effect 3.5s infinite; /* remove infinite to trigger once */
+  	}
   
-  @keyframes effect {
-    0% { transform: scale(1.0); }
-    50% { transform: scale(1.05); }
-    100% { transform: scale(1.0); -webkit-mask-position:left }
-  }
+  	@keyframes effect {
+		0% { transform: scale(1.0); }
+		50% { transform: scale(1.05); }
+		100% { transform: scale(1.0); -webkit-mask-position:left }
+  	}
 
-  .offline {
-    font-size: 20px;
-    opacity: 0.5;
-  }
+	.progress-text {
+		font-size: 35px;
+		text-shadow: none;
+		color: var(--font-color);
+		margin-top: 0.75em;
+		text-align: center;
+		transition-duration: 200ms;
+		z-index: 101;
+	}
 
-  .copy-error {
-    font-family: 'Press Start 2P', serif;
-    font-size: 16px;
-    text-shadow: none;
-    margin-top: 1em;
-    text-align: center;
-    transition-duration: 200ms;
-    z-index: 101;
-    cursor: pointer;
-  }
+	.error-text {
+		font-size: 35px;
+		text-shadow: none;
+		color: var(--red-text);
+		margin-top: 0.75em;
+		text-align: center;
+		z-index: 101;
+	}
 
-  .copy-error:hover {
-    transform: scale(1.2);
-  }
+	.error-button-container {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		gap: 1em;
+		flex-direction: row;
+	}
+
+	.ignore {
+		font-size: 40px;
+		text-shadow: none;
+		color: var(--red-text);
+		margin-top: 0.5em;
+		text-align: center;
+		transition-duration: 200ms;
+		z-index: 101;
+		cursor: pointer;
+	}
+
+	.ignore:hover {
+		letter-spacing: 2px;
+	}
+
+	.copy-error {
+		font-size: 40px;
+		text-shadow: none;
+		margin-top: 0.5em;
+		color: var(--primary-color);
+		text-align: center;
+		transition-duration: 200ms;
+		z-index: 101;
+		cursor: pointer;
+	}
+
+	.copy-error:hover {
+		letter-spacing: 2px;
+	}
 </style>

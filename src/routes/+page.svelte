@@ -12,8 +12,8 @@
     import { listen } from '@tauri-apps/api/event';
     import type { EventPayload } from '$lib/types/core';
     import { currentEvent } from '$lib/utils/eventUtils';
-  import { loadConfig } from '$lib/utils/configUtils';
-  import Skins from '$lib/pages/Skins.svelte';
+    import { loadConfig } from '$lib/utils/configUtils';
+    import Skins from '$lib/pages/Skins.svelte';
 
     $: lang = $translations;
 

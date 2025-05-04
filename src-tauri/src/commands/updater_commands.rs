@@ -2,32 +2,29 @@ use noriskclient_launcher_v3_lib::error::CommandError;
 use tauri::{Manager, WebviewWindow};
 
 #[tauri::command]
-pub async fn open_updater<R: tauri::Runtime>(
-    app: tauri::AppHandle<R>,
-) -> Result<(), CommandError> {
+pub async fn open_updater<R: tauri::Runtime>(app: tauri::AppHandle<R>) -> Result<(), CommandError> {
     if let Some(window) = app.get_webview_window("updater") {
         window.set_focus().ok();
         return Ok(());
     }
 
     // Create a new window for the log viewer
-    tauri::WebviewWindowBuilder::new(
-        &app,
-        "updater",
-        tauri::WebviewUrl::App("/updater".into()),
-    )
-    .title("NoRiskClient Updater")
-    .resizable(false)
-    .decorations(false)
-    .closable(false)
-    .inner_size(400.0, 380.0)
-    .center()
-    .build()
-    .map_err(|e| CommandError::from(noriskclient_launcher_v3_lib::error::AppError::Other(e.to_string())))?;
+    tauri::WebviewWindowBuilder::new(&app, "updater", tauri::WebviewUrl::App("/updater".into()))
+        .title("NoRiskClient Updater")
+        .resizable(false)
+        .decorations(false)
+        .closable(false)
+        .inner_size(400.0, 380.0)
+        .center()
+        .build()
+        .map_err(|e| {
+            CommandError::from(noriskclient_launcher_v3_lib::error::AppError::Other(
+                e.to_string(),
+            ))
+        })?;
 
     Ok(())
 }
-
 
 #[tauri::command]
 pub async fn close_updater(window: WebviewWindow) {
@@ -36,7 +33,7 @@ pub async fn close_updater(window: WebviewWindow) {
     if updater.is_some() {
         updater.unwrap().close().unwrap();
     }
-    
+
     // Show main window
     let main = window.get_webview_window("main");
     if main.is_some() {

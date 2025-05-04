@@ -48,14 +48,14 @@ use commands::minecraft_command::{
 use commands::profile_command::{
     abort_profile_launch, add_modrinth_content_to_profile, add_modrinth_mod_to_profile,
     copy_profile, create_profile, delete_custom_mod, delete_mod_from_profile, delete_profile,
-    export_profile, get_custom_mods, get_local_resourcepacks, get_local_shaderpacks, get_local_datapacks,
-    get_norisk_packs, get_profile, get_profile_directory_structure, get_standard_profiles,
-    get_system_ram_mb, import_local_mods, import_profile_from_file, is_profile_launching,
-    launch_profile, list_profiles, open_profile_folder, refresh_norisk_packs,
-    refresh_standard_versions, search_profiles, set_custom_mod_enabled, set_norisk_mod_status,
-    set_profile_mod_enabled, update_modrinth_mod_version, update_profile,
-    update_resourcepack_from_modrinth, update_shaderpack_from_modrinth, update_datapack_from_modrinth, get_norisk_packs_resolved,
-    is_content_installed
+    export_profile, get_custom_mods, get_local_datapacks, get_local_resourcepacks,
+    get_local_shaderpacks, get_norisk_packs, get_norisk_packs_resolved, get_profile,
+    get_profile_directory_structure, get_standard_profiles, get_system_ram_mb, import_local_mods,
+    import_profile_from_file, is_content_installed, is_profile_launching, launch_profile,
+    list_profiles, open_profile_folder, refresh_norisk_packs, refresh_standard_versions,
+    search_profiles, set_custom_mod_enabled, set_norisk_mod_status, set_profile_mod_enabled,
+    update_datapack_from_modrinth, update_modrinth_mod_version, update_profile,
+    update_resourcepack_from_modrinth, update_shaderpack_from_modrinth,
 };
 
 // Use statements for registered commands only
@@ -81,129 +81,37 @@ use commands::cape_command::{
     browse_capes, delete_cape, equip_cape, get_player_capes, unequip_cape, upload_cape,
 };
 
+use commands::updater_commands::*;
+
 use tauri::Manager;
 
 #[tokio::main]
 async fn main() {
     if let Err(e) = logging::setup_logging().await {
-        eprintln!("FEHLER: Logging konnte nicht initialisiert werden: {}", e);
-    }
-
-    /*info!("--- Running Test Modrinth Search --- DONT FORGET TO REMOVE");
-    let query = "fabric".to_string();
-    let game_version_filter = Some("1.20.1".to_string());
-    let loader_filter = Some("fabric".to_string());
-    let limit = Some(25u32);
-
-    match integrations::modrinth::search_mods(
-        query.clone(),
-        game_version_filter.clone(),
-        loader_filter.clone(),
-        limit,
-    )
-    .await
-    {
-        Ok(results) => {
-            info!(
-                "Modrinth search successful! Found {} results.",
-                results.len()
-            );
-
-            if !results.is_empty() {
-                let mut rng = rand::thread_rng();
-                if let Some(random_hit) = results.choose(&mut rng) {
-                    info!(
-                        "--- Getting versions for randomly chosen hit: '{}' (ID: {}) ---",
-                        random_hit.title, random_hit.project_id
-                    );
-
-                    match integrations::modrinth::get_mod_versions(
-                        random_hit.project_id.clone(),
-                        loader_filter.clone().map(|l| vec![l]),
-                        game_version_filter.clone().map(|gv| vec![gv]),
-                    )
-                    .await
-                    {
-                        Ok(versions) => {
-                            info!(
-                                "Found {} versions for '{}' matching filters:",
-                                versions.len(),
-                                random_hit.title
-                            );
-                            for (i, version) in versions.iter().take(10).enumerate() {
-                                let primary_file = version
-                                    .files
-                                    .iter()
-                                    .find(|f| f.primary)
-                                    .map(|f| f.filename.as_str())
-                                    .unwrap_or("N/A");
-                                info!(
-                                    "  Version {}: Name='{}', Number='{}', Type={:?}, File='{}'",
-                                    i + 1,
-                                    version.name,
-                                    version.version_number,
-                                    version.version_type,
-                                    primary_file
-                                );
-                            }
-                            if versions.len() > 10 {
-                                info!("  ... and {} more versions not shown.", versions.len() - 10);
-                            }
-                        }
-                        Err(e) => {
-                            error!("Failed to get versions for '{}': {:?}", random_hit.title, e);
-                        }
-                    }
-                } else {
-                    error!("Could not choose a random element, although search hits were found.");
-                }
-            } else {
-                info!("No mods found matching the search criteria.");
-            }
-        }
-        Err(e) => {
-            error!("Modrinth search failed: {:?}", e);
-        }
-    }
-    info!("--- Finished Test Modrinth Search --- DONT FORGET TO REMOVE");*/
-
-    match integrations::modrinth::get_multiple_projects(vec![
-        "AANobbMI".to_string(),
-        "P7dR8mSH".to_string(),
-    ])
-    .await
-    {
-        Ok(projects) => {
-            info!("Found {} projects.", projects.len());
-            for project in projects {
-                info!("Project: {}", project.title);
-            }
-        }
-        Err(e) => {
-            error!("Failed to get projects: {:?}", e);
-        }
+        eprintln!("ERROR: Failed to initialize logging: {}", e);
     }
 
     info!("Starting NoRiskClient Launcher...");
 
-    utils::file_utils::get_jar_icon_test().await;
-
     tauri::Builder::default()
-        //TODO .plugin(minecraft_auth_command::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
             // Initialize the state asynchronously
-            let app_handle_for_state = Arc::new(app.handle().clone());
+            let app_handle  = Arc::new(app.handle().clone());
+            let app_handle_for_updater = app_handle.clone();
             tauri::async_runtime::spawn(async move {
                 let _ = norisk_versions::load_dummy_versions().await;
                 let _ = norisk_packs::load_dummy_modpacks().await;
 
-                if let Err(e) = state::state_manager::State::init(app_handle_for_state).await {
+                if let Err(e) = state::state_manager::State::init(app_handle).await {
                     error!("Failed to initialize state: {}", e);
                     // Consider exiting or notifying the user if state init fails critically
                 }
+
+                let _ = open_updater((*app_handle_for_updater).clone()).await;
             });
 
             // --- Register Focus Event Listener for Discord RPC --- 
@@ -227,11 +135,14 @@ async fn main() {
             } else {
                 error!("Could not get main window handle to attach focus listener!");
             }
-            // --- End Focus Event Listener ---
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            has_internet_connection,
+            check_nrc_online_status,
+            open_updater,
+            close_updater,
             create_profile,
             get_profile,
             update_profile,

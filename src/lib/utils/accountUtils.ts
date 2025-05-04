@@ -17,14 +17,15 @@ export async function loadAccounts() {
 
 export async function addAccount(): Promise<void> {
     accounts.set([...get(accounts) ?? [], {
-        id: 'ADD_ACCOUNT',
+        id: get(translations).settings.accounts.modal.dummy_account_id,
         username: get(translations).settings.accounts.modal.dummy_account_name,
+        minecraft_username: get(translations).settings.accounts.modal.dummy_account_name,
         active: false,
         access_token: '',
         refresh_token: '',
-        expires: ''
+        expires_at: '',
     }]);
-    await beginLogin();
+    await beginLogin()
     await loadAccounts();
 }
 
@@ -45,4 +46,5 @@ export async function selectAccount(accountId: string) {
 export async function removeAccount(accountId: string) {
     await removeAccountInternal(accountId);
     loadAccounts();
+    selectAccount(get(accounts)?.[0]?.id ?? '');
 }

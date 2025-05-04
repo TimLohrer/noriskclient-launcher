@@ -1,26 +1,27 @@
-use crate::minecraft::api::mc_api::MinecraftApiService;
 use crate::error::{AppError, CommandError};
-use crate::minecraft::dto::VersionManifest;
-use crate::minecraft::dto::minecraft_profile::MinecraftProfile;
-use crate::minecraft::api::mclogs_api::upload_log_to_mclogs;
 use crate::minecraft::api::fabric_api::FabricApi;
-use crate::minecraft::dto::fabric_meta::FabricVersionInfo;
-use crate::minecraft::api::quilt_api::QuiltApi;
-use crate::minecraft::dto::quilt_meta::QuiltVersionInfo;
 use crate::minecraft::api::forge_api::ForgeApi;
+use crate::minecraft::api::mc_api::MinecraftApiService;
+use crate::minecraft::api::mclogs_api::upload_log_to_mclogs;
 use crate::minecraft::api::neo_forge_api::NeoForgeApi;
-use crate::state::state_manager::State;
+use crate::minecraft::api::quilt_api::QuiltApi;
+use crate::minecraft::dto::fabric_meta::FabricVersionInfo;
+use crate::minecraft::dto::minecraft_profile::MinecraftProfile;
+use crate::minecraft::dto::quilt_meta::QuiltVersionInfo;
+use crate::minecraft::dto::VersionManifest;
 use crate::state::skin_state::MinecraftSkin;
+use crate::state::state_manager::State;
+use log::{debug, error, info, warn};
 use semver::Op;
 use tauri_plugin_dialog::DialogExt;
 use uuid::Uuid;
-use log::{debug, info, warn, error};
 
 #[tauri::command]
 pub async fn get_minecraft_versions() -> Result<VersionManifest, CommandError> {
     debug!("Command called: get_minecraft_versions");
     let api_service = MinecraftApiService::new();
-    let result = api_service.get_version_manifest()
+    let result = api_service
+        .get_version_manifest()
         .await
         .map_err(|e| e.into());
 
@@ -52,17 +53,23 @@ pub async fn upload_log_to_mclogs_command(log_content: String) -> Result<String,
 }
 
 #[tauri::command]
-pub async fn get_fabric_loader_versions(minecraft_version: String) -> Result<Vec<FabricVersionInfo>, CommandError> {
+pub async fn get_fabric_loader_versions(
+    minecraft_version: String,
+) -> Result<Vec<FabricVersionInfo>, CommandError> {
     let fabric_api = FabricApi::new();
-    fabric_api.get_loader_versions(&minecraft_version)
+    fabric_api
+        .get_loader_versions(&minecraft_version)
         .await
         .map_err(|e| e.into())
 }
 
 #[tauri::command]
-pub async fn get_quilt_loader_versions(minecraft_version: String) -> Result<Vec<QuiltVersionInfo>, CommandError> {
+pub async fn get_quilt_loader_versions(
+    minecraft_version: String,
+) -> Result<Vec<QuiltVersionInfo>, CommandError> {
     let quilt_api = QuiltApi::new();
-    quilt_api.get_loader_versions(&minecraft_version)
+    quilt_api
+        .get_loader_versions(&minecraft_version)
         .await
         .map_err(|e| e.into())
 }
@@ -70,7 +77,8 @@ pub async fn get_quilt_loader_versions(minecraft_version: String) -> Result<Vec<
 #[tauri::command]
 pub async fn get_forge_versions(minecraft_version: String) -> Result<Vec<String>, CommandError> {
     let forge_api = ForgeApi::new();
-    let metadata = forge_api.get_all_versions()
+    let metadata = forge_api
+        .get_all_versions()
         .await
         .map_err(CommandError::from)?;
 
@@ -81,7 +89,8 @@ pub async fn get_forge_versions(minecraft_version: String) -> Result<Vec<String>
 #[tauri::command]
 pub async fn get_neoforge_versions(minecraft_version: String) -> Result<Vec<String>, CommandError> {
     let neo_forge_api = NeoForgeApi::new();
-    let metadata = neo_forge_api.get_all_versions()
+    let metadata = neo_forge_api
+        .get_all_versions()
         .await
         .map_err(CommandError::from)?;
 
@@ -91,7 +100,10 @@ pub async fn get_neoforge_versions(minecraft_version: String) -> Result<Vec<Stri
 
 /// Get the current user skin data
 #[tauri::command]
-pub async fn get_user_skin_data(uuid: String, access_token: Option<String>) -> Result<MinecraftProfile, CommandError> {
+pub async fn get_user_skin_data(
+    uuid: String,
+    access_token: Option<String>,
+) -> Result<MinecraftProfile, CommandError> {
     debug!("Command called: get_user_skin_data for UUID: {}", uuid);
     let api_service = MinecraftApiService::new();
 
@@ -99,7 +111,7 @@ pub async fn get_user_skin_data(uuid: String, access_token: Option<String>) -> R
         Ok(data) => {
             debug!("Successfully retrieved skin data for UUID: {}", uuid);
             data
-        },
+        }
         Err(e) => {
             debug!("Failed to retrieve skin data for UUID {}: {:?}", uuid, e);
             return Err(CommandError::from(e));
@@ -118,24 +130,27 @@ pub async fn upload_skin<R: tauri::Runtime>(
     skin_variant: String,
     app: tauri::AppHandle<R>,
 ) -> Result<(), CommandError> {
-    debug!("Command called: upload_skin for UUID: {} with variant: {}", uuid, skin_variant);
+    debug!(
+        "Command called: upload_skin for UUID: {} with variant: {}",
+        uuid, skin_variant
+    );
 
     // Validate skin variant
     if skin_variant != "classic" && skin_variant != "slim" {
         debug!("Invalid skin variant: {}", skin_variant);
-        return Err(CommandError::from(
-            AppError::Other(format!("Invalid skin variant. Must be 'classic' or 'slim'"))
-        ));
+        return Err(CommandError::from(AppError::Other(format!(
+            "Invalid skin variant. Must be 'classic' or 'slim'"
+        ))));
     }
 
     debug!("Opening file dialog to select skin file");
     // Spawn the blocking dialog call onto a blocking thread pool
     let dialog_result = tokio::task::spawn_blocking(move || {
         app.dialog()
-           .file()
-           .add_filter("PNG Image", &["png"])
-           .set_title("Select Minecraft Skin File")
-           .blocking_pick_file()
+            .file()
+            .add_filter("PNG Image", &["png"])
+            .set_title("Select Minecraft Skin File")
+            .blocking_pick_file()
     })
     .await
     .map_err(|e| {
@@ -148,20 +163,21 @@ pub async fn upload_skin<R: tauri::Runtime>(
             Ok(path) => {
                 debug!("Selected skin file: {:?}", path);
                 path
-            },
+            }
             Err(e) => {
                 debug!("Failed to convert selected file path: {}", e);
-                return Err(CommandError::from(AppError::Other(
-                    format!("Failed to convert selected file path: {}", e)
-                )));
+                return Err(CommandError::from(AppError::Other(format!(
+                    "Failed to convert selected file path: {}",
+                    e
+                ))));
             }
         },
         None => {
             debug!("No skin file selected");
-            return Err(CommandError::from(
-                AppError::Other("No skin file selected".to_string())
-            ));
-        },
+            return Err(CommandError::from(AppError::Other(
+                "No skin file selected".to_string(),
+            )));
+        }
     };
 
     debug!("Reading skin file content");
@@ -170,13 +186,14 @@ pub async fn upload_skin<R: tauri::Runtime>(
         Ok(content) => {
             debug!("Successfully read skin file ({} bytes)", content.len());
             content
-        },
+        }
         Err(e) => {
             debug!("Failed to read skin file: {}", e);
-            return Err(CommandError::from(AppError::Other(
-                format!("Failed to read skin file: {}", e)
-            )));
-        },
+            return Err(CommandError::from(AppError::Other(format!(
+                "Failed to read skin file: {}",
+                e
+            ))));
+        }
     };
 
     // Get filename from path to use as skin name
@@ -199,12 +216,15 @@ pub async fn upload_skin<R: tauri::Runtime>(
 
     debug!("Uploading skin to Minecraft API");
     // Upload the skin
-    match api_service.change_skin(
-        &access_token,
-        &uuid,
-        skin_path.to_str().unwrap_or(""),
-        &skin_variant,
-    ).await {
+    match api_service
+        .change_skin(
+            &access_token,
+            &uuid,
+            skin_path.to_str().unwrap_or(""),
+            &skin_variant,
+        )
+        .await
+    {
         Ok(_) => debug!("Successfully uploaded skin to Minecraft API"),
         Err(e) => {
             debug!("Failed to upload skin to Minecraft API: {:?}", e);
@@ -214,7 +234,10 @@ pub async fn upload_skin<R: tauri::Runtime>(
 
     // Convert the file content to base64
     let base64_data = base64::encode(&file_content);
-    debug!("Converted skin to base64 ({} characters)", base64_data.len());
+    debug!(
+        "Converted skin to base64 ({} characters)",
+        base64_data.len()
+    );
 
     debug!("Saving skin to local database");
     // Save the skin to the local database
@@ -326,14 +349,17 @@ pub async fn add_skin(
     variant: String,
     description: Option<String>,
 ) -> Result<MinecraftSkin, CommandError> {
-    debug!("Command called: add_skin with name: {}, variant: {}", name, variant);
+    debug!(
+        "Command called: add_skin with name: {}, variant: {}",
+        name, variant
+    );
 
     // Validate skin variant
     if variant != "classic" && variant != "slim" {
         debug!("Invalid skin variant: {}", variant);
-        return Err(CommandError::from(
-            AppError::Other(format!("Invalid skin variant. Must be 'classic' or 'slim'"))
-        ));
+        return Err(CommandError::from(AppError::Other(format!(
+            "Invalid skin variant. Must be 'classic' or 'slim'"
+        ))));
     }
 
     // Create a new skin with a unique ID
@@ -392,7 +418,7 @@ pub async fn remove_skin(id: String) -> Result<bool, CommandError> {
                 debug!("No skin found with ID: {}", id);
             }
             r
-        },
+        }
         Err(e) => {
             debug!("Failed to remove skin: {:?}", e);
             return Err(CommandError::from(e));
@@ -411,15 +437,18 @@ pub async fn apply_skin_from_base64(
     base64_data: String,
     skin_variant: String,
 ) -> Result<(), CommandError> {
-    debug!("Command called: apply_skin_from_base64 for UUID: {} with variant: {}", uuid, skin_variant);
+    debug!(
+        "Command called: apply_skin_from_base64 for UUID: {} with variant: {}",
+        uuid, skin_variant
+    );
     debug!("Base64 data length: {} characters", base64_data.len());
 
     // Validate skin variant
     if skin_variant != "classic" && skin_variant != "slim" {
         debug!("Invalid skin variant: {}", skin_variant);
-        return Err(CommandError::from(
-            AppError::Other(format!("Invalid skin variant. Must be 'classic' or 'slim'"))
-        ));
+        return Err(CommandError::from(AppError::Other(format!(
+            "Invalid skin variant. Must be 'classic' or 'slim'"
+        ))));
     }
 
     // Create a new API service instance
@@ -427,11 +456,10 @@ pub async fn apply_skin_from_base64(
 
     debug!("Applying skin from base64 data via Minecraft API");
     // Apply the skin using base64 data
-    match api_service.change_skin_from_base64(
-        &access_token,
-        &base64_data,
-        &skin_variant,
-    ).await {
+    match api_service
+        .change_skin_from_base64(&access_token, &base64_data, &skin_variant)
+        .await
+    {
         Ok(_) => debug!("Successfully applied skin from base64 data"),
         Err(e) => {
             debug!("Failed to apply skin from base64 data: {:?}", e);
@@ -456,9 +484,9 @@ pub async fn update_skin_properties(
     // Validate skin variant
     if variant != "classic" && variant != "slim" {
         debug!("Invalid skin variant: {}", variant);
-        return Err(CommandError::from(
-            AppError::Other(format!("Invalid skin variant. Must be 'classic' or 'slim'"))
-        ));
+        return Err(CommandError::from(AppError::Other(format!(
+            "Invalid skin variant. Must be 'classic' or 'slim'"
+        ))));
     }
 
     let state = match State::get().await {
@@ -469,7 +497,11 @@ pub async fn update_skin_properties(
         }
     };
 
-    let updated_skin = match state.skin_manager.update_skin_properties(&id, name, variant).await {
+    let updated_skin = match state
+        .skin_manager
+        .update_skin_properties(&id, name, variant)
+        .await
+    {
         Ok(skin) => {
             if let Some(s) = &skin {
                 debug!("Successfully updated skin properties for ID: {}", id);
@@ -477,7 +509,7 @@ pub async fn update_skin_properties(
                 debug!("No skin found with ID: {}", id);
             }
             skin
-        },
+        }
         Err(e) => {
             debug!("Failed to update skin properties: {:?}", e);
             return Err(CommandError::from(e));

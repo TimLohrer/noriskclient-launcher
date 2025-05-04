@@ -1,6 +1,6 @@
-use thiserror::Error;
 use serde::Serialize;
 use std::io;
+use thiserror::Error;
 use uuid::Uuid;
 
 #[derive(Error, Debug)]
@@ -136,7 +136,7 @@ pub enum AppError {
 
     #[error("Parse error: {0}")]
     ParseError(String),
-    
+
     #[error("Invalid Input: {0}")]
     InvalidInput(String),
 
