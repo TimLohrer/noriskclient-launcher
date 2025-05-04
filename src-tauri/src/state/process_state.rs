@@ -18,6 +18,7 @@ use tokio::time::{interval, Duration};
 use std::process::ExitStatus;
 use dashmap::DashMap;
 use tokio::task::JoinHandle;
+use tauri::Manager;
 
 const PROCESSES_FILENAME: &str = "processes.json";
 
@@ -35,6 +36,13 @@ pub struct ProcessMetadata {
     pub start_time: DateTime<Utc>,
     pub state: ProcessState,
     pub pid: u32,
+    pub account_uuid: Option<String>,
+    pub account_name: Option<String>,
+    pub minecraft_version: Option<String>,
+    pub modloader: Option<String>,
+    pub modloader_version: Option<String>,
+    pub norisk_pack: Option<String>,
+    pub profile_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -52,12 +60,6 @@ struct Process {
     last_log_position: Arc<Mutex<u64>>,
 }
 
-#[derive(Clone, serde::Serialize)]
-struct ProcessLogEvent {
-    process_id: Uuid,
-    line: String,
-}
-
 impl ProcessManager {
     pub async fn new(processes_file_path: PathBuf) -> Result<Self> {
         log::info!(
@@ -67,7 +69,7 @@ impl ProcessManager {
         let processes = Arc::new(RwLock::new(HashMap::new()));
         let save_lock = Mutex::new(());
         let launching_processes = Arc::new(DashMap::new());
-        
+
         let processes_clone = Arc::clone(&processes);
 
         let manager = Self {
@@ -214,6 +216,13 @@ impl ProcessManager {
         &self,
         profile_id: Uuid,
         mut command: std::process::Command,
+        account_uuid: Option<String>,
+        account_name: Option<String>,
+        minecraft_version: Option<String>,
+        modloader: Option<String>,
+        modloader_version: Option<String>,
+        norisk_pack: Option<String>,
+        profile_name: Option<String>,
     ) -> Result<Uuid> {
         log::info!("Attempting to start process for profile {}", profile_id);
 
@@ -234,7 +243,7 @@ impl ProcessManager {
             );
             command.creation_flags(DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP);
         }
-        
+
         let mut tokio_command = tokio::process::Command::from(command);
         let mut child = tokio_command.spawn().map_err(|e| {
             log::error!("Failed to spawn process using tokio::process::Command: {}", e);
@@ -253,6 +262,13 @@ impl ProcessManager {
             start_time: Utc::now(),
             state: ProcessState::Running,
             pid,
+            account_uuid,
+            account_name,
+            minecraft_version,
+            modloader,
+            modloader_version,
+            norisk_pack,
+            profile_name,
         };
 
         log::info!(
@@ -270,7 +286,20 @@ impl ProcessManager {
             let mut processes_map = self.processes.write().await;
             processes_map.insert(process_id, process_entry);
         }
-        
+
+        // --- BEGIN Discord State Update --- 
+        match State::get().await {
+            Ok(state) => {
+                log::debug!("Notifying Discord manager about game process {} start.", process_id);
+                state.discord_manager.notify_game_start(process_id).await;
+            }
+            Err(e) => {
+                log::error!("Failed to get global state to update Discord timestamp for process {}: {}. Discord state might be incorrect.", process_id, e);
+                // Continue execution, Discord state update is not critical for process start
+            }
+        }
+        // --- END Discord State Update ---
+
         if let Err(e) = self.save_processes().await {
              log::error!(
                  "Failed to save processes state immediately after starting {}: {}",
@@ -689,7 +718,7 @@ impl ProcessManager {
                 log::error!("Failed to read log file bytes {:?}: {}", log_path, e);
                 AppError::Io(e)
             })?;
-        
+
         // Convert bytes to string, replacing invalid sequences
         let log_content = String::from_utf8_lossy(&log_bytes).to_string();
 
@@ -713,11 +742,11 @@ impl ProcessManager {
     pub fn abort_launch_process(&self, profile_id: Uuid) -> Result<()> {
         if let Some((_, handle)) = self.launching_processes.remove(&profile_id) {
             log::info!("Aborting launch task for profile ID: {}", profile_id);
-            
+
             // Abort the task
             handle.abort();
             log::info!("Successfully aborted launch task for profile ID: {}", profile_id);
-            
+
             return Ok(());
         } else {
             log::warn!("No launching task found for profile ID: {}", profile_id);

@@ -1,22 +1,30 @@
 use crate::error::{AppError, CommandError};
 use crate::integrations::modrinth::ModrinthVersion;
 use crate::integrations::mrpack;
-use crate::integrations::norisk_packs::{NoriskModpacksConfig, import_noriskpack_as_profile};
+use crate::integrations::norisk_packs::{
+    import_noriskpack_as_profile, NoriskModpacksConfig, NoriskPackDefinition,
+};
 use crate::integrations::norisk_versions::{self, NoriskVersionsConfig};
 use crate::minecraft::installer;
 use crate::state::profile_state::{
-    default_profile_path, CustomModInfo, ModLoader, Profile, ProfileSettings, ProfileState,
+    default_profile_path, CustomModInfo, ModLoader, ModSource, Profile, ProfileSettings,
+    ProfileState,
 };
 use crate::state::state_manager::State;
+use crate::utils::datapack_utils::DataPackInfo;
 use crate::utils::path_utils::find_unique_profile_segment;
-use crate::utils::{profile_utils, resourcepack_utils, shaderpack_utils, path_utils};
+use crate::utils::profile_utils::{CheckContentParams, ContentInstallStatus};
+use crate::utils::resourcepack_utils::ResourcePackInfo;
+use crate::utils::shaderpack_utils::ShaderPackInfo;
+use crate::utils::{
+    datapack_utils, path_utils, profile_utils, resourcepack_utils, shaderpack_utils,
+};
 use chrono::Utc;
-use log::info;
-use log::error;
+use log::{error, info, warn};
 use noriskclient_launcher_v3_lib::config::{ProjectDirsExt, LAUNCHER_DIRECTORY};
 use sanitize_filename::sanitize;
 use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use sysinfo::System;
 use tauri_plugin_dialog::DialogExt;
@@ -58,9 +66,9 @@ pub struct CopyProfileParams {
 pub struct ExportProfileParams {
     profile_id: Uuid,
     output_path: Option<String>, // This will be ignored but kept for backward compatibility
-    file_name: String,          // Base name without extension
+    file_name: String,           // Base name without extension
     include_files: Option<Vec<PathBuf>>,
-    open_folder: bool,         // Whether to open the exports folder after export
+    open_folder: bool, // Whether to open the exports folder after export
 }
 
 // CRUD Commands
@@ -127,7 +135,7 @@ pub async fn create_profile(params: CreateProfileParams) -> Result<Uuid, Command
 #[tauri::command]
 pub async fn launch_profile(id: Uuid) -> Result<(), CommandError> {
     let state = State::get().await?;
-    
+
     // Try to get the regular profile
     let profile = match state.profile_manager.get_profile(id).await {
         Ok(profile) => {
@@ -139,22 +147,33 @@ pub async fn launch_profile(id: Uuid) -> Result<(), CommandError> {
                 .update_profile(id, profile.clone())
                 .await?;
             profile
-        },
+        }
         Err(_) => {
             // Profile not found - check if it's a standard version ID
-            info!("Profile with ID {} not found, checking standard versions", id);
+            info!(
+                "Profile with ID {} not found, checking standard versions",
+                id
+            );
             let standard_versions = state.norisk_version_manager.get_config().await;
-            
+
             // Find a standard profile with matching ID
-            let standard_profile = standard_versions.profiles.iter()
+            let standard_profile = standard_versions
+                .profiles
+                .iter()
                 .find(|p| p.id == id)
                 .ok_or_else(|| {
-                    AppError::Other(format!("No profile or standard version found with ID {}", id))
+                    AppError::Other(format!(
+                        "No profile or standard version found with ID {}",
+                        id
+                    ))
                 })?;
-            
+
             // Convert standard profile to a temporary profile
-            info!("Converting standard profile '{}' to a temporary profile", standard_profile.name);
-            
+            info!(
+                "Converting standard profile '{}' to a temporary profile",
+                standard_profile.name
+            );
+
             // Return the converted profile without saving it
             standard_profile.clone()
         }
@@ -174,9 +193,9 @@ pub async fn launch_profile(id: Uuid) -> Result<(), CommandError> {
         }
     };
 
-    let profile_id = profile.id;  // Store profile ID for later use
+    let profile_id = profile.id; // Store profile ID for later use
     let profile_clone = profile.clone();
-    
+
     // Spawn the installation task and get the JoinHandle
     let handle = tokio::spawn(async move {
         let install_result = installer::install_minecraft_version(
@@ -184,13 +203,14 @@ pub async fn launch_profile(id: Uuid) -> Result<(), CommandError> {
             &modloader.as_str(),
             &profile_clone,
             credentials,
-        ).await;
-        
+        )
+        .await;
+
         // Get state again within the spawn context
         if let Ok(state) = State::get().await {
             // Ensure we remove the launching process tracking when done
             state.process_manager.remove_launching_process(profile_id);
-            
+
             match install_result {
                 Ok(_) => info!(
                     "Successfully installed/launched Minecraft version {}",
@@ -200,9 +220,11 @@ pub async fn launch_profile(id: Uuid) -> Result<(), CommandError> {
             }
         }
     });
-    
+
     // Store the task handle for possible abortion
-    state.process_manager.add_launching_process(profile_id, handle);
+    state
+        .process_manager
+        .add_launching_process(profile_id, handle);
 
     Ok(())
 }
@@ -211,23 +233,33 @@ pub async fn launch_profile(id: Uuid) -> Result<(), CommandError> {
 /// This is useful to cancel a profile installation/launch that's taking too long.
 #[tauri::command]
 pub async fn abort_profile_launch(profile_id: Uuid) -> Result<(), CommandError> {
-    info!("Attempting to abort launch process for profile ID: {}", profile_id);
-    
+    info!(
+        "Attempting to abort launch process for profile ID: {}",
+        profile_id
+    );
+
     let state = State::get().await?;
-    
+
     // Check if the profile has an active launching process
     if !state.process_manager.has_launching_process(profile_id) {
-        info!("No active launch process found for profile ID: {}", profile_id);
-        return Err(CommandError::from(AppError::Other(
-            format!("No active launch process found for profile ID: {}", profile_id)
-        )));
+        info!(
+            "No active launch process found for profile ID: {}",
+            profile_id
+        );
+        return Err(CommandError::from(AppError::Other(format!(
+            "No active launch process found for profile ID: {}",
+            profile_id
+        ))));
     }
-    
+
     // Attempt to abort the process
     match state.process_manager.abort_launch_process(profile_id) {
         Ok(_) => {
-            info!("Successfully aborted launch process for profile ID: {}", profile_id);
-            
+            info!(
+                "Successfully aborted launch process for profile ID: {}",
+                profile_id
+            );
+
             // Emit an event to notify the UI that the process was aborted
             let event_payload = crate::state::event_state::EventPayload {
                 event_id: Uuid::new_v4(),
@@ -237,15 +269,21 @@ pub async fn abort_profile_launch(profile_id: Uuid) -> Result<(), CommandError> 
                 progress: Some(0.0), // Reset progress
                 error: Some("Der Launch-Prozess wurde manuell abgebrochen".to_string()),
             };
-            
+
             if let Err(e) = state.event_state.emit(event_payload).await {
-                error!("Failed to emit abort event for profile {}: {}", profile_id, e);
+                error!(
+                    "Failed to emit abort event for profile {}: {}",
+                    profile_id, e
+                );
             }
-            
+
             Ok(())
-        },
+        }
         Err(e) => {
-            error!("Failed to abort launch process for profile ID {}: {}", profile_id, e);
+            error!(
+                "Failed to abort launch process for profile ID {}: {}",
+                profile_id, e
+            );
             Err(CommandError::from(e))
         }
     }
@@ -387,6 +425,46 @@ pub async fn get_norisk_packs() -> Result<NoriskModpacksConfig, CommandError> {
     let state = State::get().await?;
     let config = state.norisk_pack_manager.get_config().await;
     Ok(config)
+}
+
+/// Retrieves the Norisk packs configuration with fully resolved mod lists for each pack.
+#[tauri::command]
+pub async fn get_norisk_packs_resolved() -> Result<NoriskModpacksConfig, CommandError> {
+    info!("Received command get_norisk_packs_resolved");
+    let state = State::get().await?;
+    let manager = &state.norisk_pack_manager; // Get a reference
+
+    // Get the base configuration to access metadata and pack IDs
+    let base_config = manager.get_config().await;
+
+    // Create a new map to store the resolved pack definitions
+    let mut resolved_packs = HashMap::new();
+
+    // Iterate through the pack IDs from the base config's packs map
+    for pack_id in base_config.packs.keys() {
+        match base_config.get_resolved_pack_definition(pack_id) {
+            Ok(resolved_pack) => {
+                resolved_packs.insert(pack_id.clone(), resolved_pack);
+            }
+            Err(e) => {
+                // Log the error for the specific pack but continue resolving others
+                error!(
+                    "Failed to resolve pack definition for ID '{}': {}",
+                    pack_id, e
+                );
+                // Optionally, return an error if resolving any pack fails
+                // return Err(CommandError::from(e));
+            }
+        }
+    }
+
+    // Construct the final config object with the resolved packs
+    let resolved_config = NoriskModpacksConfig {
+        packs: resolved_packs, // Use the newly created map with resolved packs
+        repositories: base_config.repositories, // Copy repositories from base config
+    };
+
+    Ok(resolved_config)
 }
 
 #[tauri::command]
@@ -673,15 +751,20 @@ pub async fn import_profile_from_file(app_handle: tauri::AppHandle) -> Result<()
             Some("mrpack") => {
                 log::info!("File extension is .mrpack, proceeding with mrpack processing.");
                 mrpack::import_mrpack_as_profile(file_path_buf).await?
-            },
+            }
             Some("noriskpack") => {
                 log::info!("File extension is .noriskpack, proceeding with noriskpack processing.");
-                crate::integrations::norisk_packs::import_noriskpack_as_profile(file_path_buf).await?
-            },
+                crate::integrations::norisk_packs::import_noriskpack_as_profile(file_path_buf)
+                    .await?
+            }
             _ => {
-                log::error!("Selected file has an invalid extension: {:?}", file_path_buf);
+                log::error!(
+                    "Selected file has an invalid extension: {:?}",
+                    file_path_buf
+                );
                 return Err(CommandError::from(AppError::Other(
-                    "Invalid file type selected. Please select a .mrpack or .noriskpack file.".to_string(),
+                    "Invalid file type selected. Please select a .mrpack or .noriskpack file."
+                        .to_string(),
                 )));
             }
         };
@@ -801,40 +884,55 @@ pub async fn add_modrinth_content_to_profile(
 pub async fn get_profile_directory_structure(
     profile_id: Uuid,
 ) -> Result<path_utils::FileNode, CommandError> {
-    log::info!("Executing get_profile_directory_structure command for profile {}", profile_id);
+    log::info!(
+        "Executing get_profile_directory_structure command for profile {}",
+        profile_id
+    );
 
     let state = State::get().await?;
-    
+
     // Profil abrufen - versuche reguläres Profil oder Standard-Version
     let profile = match state.profile_manager.get_profile(profile_id).await {
         Ok(profile) => profile,
         Err(_) => {
             // Profil nicht gefunden - prüfe ob es eine Standard-Version ID ist
-            log::info!("Profile with ID {} not found, checking standard versions", profile_id);
+            log::info!(
+                "Profile with ID {} not found, checking standard versions",
+                profile_id
+            );
             let standard_versions = state.norisk_version_manager.get_config().await;
-            
+
             // Finde ein Standard-Profil mit passender ID
-            let standard_profile = standard_versions.profiles.iter()
+            let standard_profile = standard_versions
+                .profiles
+                .iter()
                 .find(|p| p.id == profile_id)
                 .ok_or_else(|| {
-                    AppError::Other(format!("No profile or standard version found with ID {}", profile_id))
+                    AppError::Other(format!(
+                        "No profile or standard version found with ID {}",
+                        profile_id
+                    ))
                 })?;
-            
+
             // Konvertiere Standard-Profil zu einem temporären Profil
-            log::info!("Converting standard profile '{}' to a user profile for directory structure", standard_profile.name);
+            log::info!(
+                "Converting standard profile '{}' to a user profile for directory structure",
+                standard_profile.name
+            );
             standard_profile.clone()
         }
     };
-    
+
     // Calculate the full profile path
-    let profile_path = state.profile_manager
+    let profile_path = state
+        .profile_manager
         .calculate_instance_path_for_profile(&profile)?;
-    
+
     // Get the directory structure using path_utils
     let structure = path_utils::get_directory_structure(&profile_path, false)
         .await
         .map_err(|e| CommandError::from(e))?;
-    
+
     Ok(structure)
 }
 
@@ -842,37 +940,55 @@ pub async fn get_profile_directory_structure(
 /// aber kopiert nur die angegebenen Dateien wenn include_files angegeben ist.
 #[tauri::command]
 pub async fn copy_profile(params: CopyProfileParams) -> Result<Uuid, CommandError> {
-    info!("Executing copy_profile command from profile {}", params.source_profile_id);
-    
+    info!(
+        "Executing copy_profile command from profile {}",
+        params.source_profile_id
+    );
+
     let state = State::get().await?;
-    
+
     // 1. Quellprofil abrufen - versuche reguläres Profil oder Standard-Version
-    let source_profile = match state.profile_manager.get_profile(params.source_profile_id).await {
+    let source_profile = match state
+        .profile_manager
+        .get_profile(params.source_profile_id)
+        .await
+    {
         Ok(profile) => profile,
         Err(_) => {
             // Profil nicht gefunden - prüfe ob es eine Standard-Version ID ist
-            info!("Profile with ID {} not found, checking standard versions", params.source_profile_id);
+            info!(
+                "Profile with ID {} not found, checking standard versions",
+                params.source_profile_id
+            );
             let standard_versions = state.norisk_version_manager.get_config().await;
-            
+
             // Finde ein Standard-Profil mit passender ID
-            let standard_profile = standard_versions.profiles.iter()
+            let standard_profile = standard_versions
+                .profiles
+                .iter()
                 .find(|p| p.id == params.source_profile_id)
                 .ok_or_else(|| {
-                    AppError::Other(format!("No profile or standard version found with ID {}", params.source_profile_id))
+                    AppError::Other(format!(
+                        "No profile or standard version found with ID {}",
+                        params.source_profile_id
+                    ))
                 })?;
-            
+
             // Konvertiere Standard-Profil zu einem temporären Profil
-            info!("Converting standard profile '{}' to a user profile for copying", standard_profile.name);
+            info!(
+                "Converting standard profile '{}' to a user profile for copying",
+                standard_profile.name
+            );
             standard_profile.clone()
         }
     };
-    
+
     // 2. Basis-Pfad für Profile bestimmen
     let base_profiles_dir = default_profile_path();
     TokioFs::create_dir_all(&base_profiles_dir)
         .await
         .map_err(|e| CommandError::from(AppError::Io(e)))?;
-    
+
     // 3. Gewünschten Segmentnamen für das neue Profil bereinigen
     let sanitized_base_name = sanitize(&params.new_profile_name);
     if sanitized_base_name.is_empty() {
@@ -880,11 +996,12 @@ pub async fn copy_profile(params: CopyProfileParams) -> Result<Uuid, CommandErro
             "Profile name is invalid after sanitization.".to_string(),
         )));
     }
-    
+
     // 4. Eindeutigen Segmentnamen finden
-    let unique_segment = find_unique_profile_segment(&base_profiles_dir, &sanitized_base_name).await?;
+    let unique_segment =
+        find_unique_profile_segment(&base_profiles_dir, &sanitized_base_name).await?;
     info!("Unique segment for copied profile: {}", unique_segment);
-    
+
     // 5. Erstelle ein neues Profil basierend auf dem Quellprofil
     let new_profile = Profile {
         id: Uuid::new_v4(),
@@ -897,7 +1014,7 @@ pub async fn copy_profile(params: CopyProfileParams) -> Result<Uuid, CommandErro
         last_played: None,
         settings: source_profile.settings.clone(),
         state: ProfileState::NotInstalled, // Neues Profil ist noch nicht installiert
-        mods: Vec::new(), // Mods werden erst nach dem Kopieren aktualisiert
+        mods: Vec::new(),                  // Mods werden erst nach dem Kopieren aktualisiert
         selected_norisk_pack_id: source_profile.selected_norisk_pack_id.clone(),
         disabled_norisk_mods_detailed: source_profile.disabled_norisk_mods_detailed.clone(),
         source_standard_profile_id: source_profile.source_standard_profile_id,
@@ -907,67 +1024,90 @@ pub async fn copy_profile(params: CopyProfileParams) -> Result<Uuid, CommandErro
         norisk_information: None,
         banner: None,
     };
-    
+
     // 6. Erstelle das neue Profilverzeichnis
     let new_profile_path = base_profiles_dir.join(&unique_segment);
     TokioFs::create_dir_all(&new_profile_path)
         .await
         .map_err(|e| CommandError::from(AppError::Io(e)))?;
-    
+
     // 7. Berechne die vollständigen Pfade für Quell- und Zielverzeichnisse
     let source_full_path = base_profiles_dir.join(&source_profile.path);
-    
+
     // 8. Kopiere die Dateien basierend auf den Parametern
     let files_copied = if let Some(include_files) = &params.include_files {
         if !include_files.is_empty() {
             // Wenn eine nicht-leere Include-Liste angegeben wurde, verwende die neue Funktion
-            info!("Copying only specified files ({} paths) to new profile {}", 
-                 include_files.len(), new_profile.id);
-                 
+            info!(
+                "Copying only specified files ({} paths) to new profile {}",
+                include_files.len(),
+                new_profile.id
+            );
+
             // Die neue Funktion kümmert sich um alles in einem Schritt
             path_utils::copy_profile_with_includes(
                 &source_full_path,
                 &new_profile_path,
-                include_files
-            ).await?
+                include_files,
+            )
+            .await?
         } else {
             // Leere include_files bedeutet: kopiere nichts
-            info!("Empty include_files list, not copying any files to new profile {}", new_profile.id);
+            info!(
+                "Empty include_files list, not copying any files to new profile {}",
+                new_profile.id
+            );
             0
         }
     } else {
-        info!("No include_files specified, copying no files to new profile {}", new_profile.id);
+        info!(
+            "No include_files specified, copying no files to new profile {}",
+            new_profile.id
+        );
         0
     };
-    
-    info!("Copied {} files to new profile {}", files_copied, new_profile.id);
-    
+
+    info!(
+        "Copied {} files to new profile {}",
+        files_copied, new_profile.id
+    );
+
     // 9. Speichere das neue Profil in der Datenbank
     let new_profile_id = state.profile_manager.create_profile(new_profile).await?;
-    
+
     // 10. Event auslösen, um das UI zu aktualisieren
-    if let Err(e) = state.event_state.trigger_profile_update(new_profile_id).await {
+    if let Err(e) = state
+        .event_state
+        .trigger_profile_update(new_profile_id)
+        .await
+    {
         log::error!(
             "Failed to emit TriggerProfileUpdate event for profile {}: {}",
             new_profile_id,
             e
         );
     }
-    
+
     Ok(new_profile_id)
 }
 
 /// Exports a profile to a .noriskpack file format with a fixed export directory
 #[tauri::command]
-pub async fn export_profile(app_handle: tauri::AppHandle, params: ExportProfileParams) -> Result<String, CommandError> {
-    info!("Executing export_profile command for profile {}", params.profile_id);
-    
+pub async fn export_profile(
+    app_handle: tauri::AppHandle,
+    params: ExportProfileParams,
+) -> Result<String, CommandError> {
+    info!(
+        "Executing export_profile command for profile {}",
+        params.profile_id
+    );
+
     // Ensure the exports directory exists
     let exports_dir = LAUNCHER_DIRECTORY.root_dir().join("exports");
     TokioFs::create_dir_all(&exports_dir)
         .await
         .map_err(|e| CommandError::from(AppError::Io(e)))?;
-    
+
     // Sanitize the filename and add .noriskpack extension
     let sanitized_name = sanitize(&params.file_name);
     if sanitized_name.is_empty() {
@@ -975,31 +1115,35 @@ pub async fn export_profile(app_handle: tauri::AppHandle, params: ExportProfileP
             "Export filename is invalid after sanitization.".to_string(),
         )));
     }
-    
+
     // Generate complete filename with extension
     let noriskpack_filename = format!("{}.noriskpack", sanitized_name);
-    
+
     // Create full export path
     let export_path = exports_dir.join(&noriskpack_filename);
-    
+
     info!("Exporting profile to {}", export_path.display());
-    
+
     // Perform the export
     let result_path = profile_utils::export_profile_to_noriskpack(
         params.profile_id,
         Some(export_path.clone()),
         params.include_files,
-    ).await?;
-    
+    )
+    .await?;
+
     // Open the export directory if requested
     if params.open_folder {
         info!("Opening export directory: {}", exports_dir.display());
-        if let Err(e) = app_handle.opener().open_path(exports_dir.to_string_lossy(), None::<&str>) {
+        if let Err(e) = app_handle
+            .opener()
+            .open_path(exports_dir.to_string_lossy(), None::<&str>)
+        {
             info!("Failed to open export directory: {}", e);
             // Don't fail the command if directory opening fails
         }
     }
-    
+
     Ok(result_path.to_string_lossy().to_string())
 }
 
@@ -1011,3 +1155,164 @@ pub async fn is_profile_launching(profile_id: Uuid) -> Result<bool, CommandError
     Ok(state.process_manager.has_launching_process(profile_id))
 }
 
+/// Fetches the latest Norisk packs configuration from the API and updates the local cache.
+#[tauri::command]
+pub async fn refresh_norisk_packs() -> Result<(), CommandError> {
+    info!("Refreshing Norisk packs via command...");
+    let state = State::get().await?;
+
+    //TODO hier später von der config holen
+    match state
+        .norisk_pack_manager
+        .fetch_and_update_config(&"", true)
+        .await
+    {
+        Ok(_) => {
+            info!("Successfully refreshed Norisk packs via command.");
+            Ok(())
+        }
+        Err(e) => {
+            error!("Failed to refresh Norisk packs via command: {}", e);
+            Err(CommandError::from(e))
+        }
+    }
+}
+
+/// Fetches the latest standard version profiles from the API and updates the local cache.
+#[tauri::command]
+pub async fn refresh_standard_versions() -> Result<(), CommandError> {
+    info!("Refreshing standard versions via command...");
+    let state = State::get().await?;
+
+    // Call the manager's fetch and update method
+    //TODO hier später von der config holen
+    match state
+        .norisk_version_manager
+        .fetch_and_update_config(&"", true) // Call the new method
+        .await
+    {
+        Ok(_) => {
+            info!("Successfully refreshed standard versions via command.");
+            Ok(())
+        }
+        Err(e) => {
+            error!("Failed to refresh standard versions via command: {}", e);
+            Err(CommandError::from(e))
+        }
+    }
+}
+
+// Command to update a Modrinth resourcepack in a profile
+#[tauri::command]
+pub async fn update_resourcepack_from_modrinth(
+    profile_id: Uuid,
+    resourcepack: ResourcePackInfo,
+    new_version_details: ModrinthVersion,
+) -> Result<(), CommandError> {
+    info!(
+        "Received command update_resourcepack_from_modrinth: profile={}, resourcepack={}, new_version_id={}",
+        profile_id,
+        resourcepack.filename,
+        new_version_details.id
+    );
+
+    let state = State::get().await?;
+    let profile = state.profile_manager.get_profile(profile_id).await?;
+
+    crate::utils::resourcepack_utils::update_resourcepack_from_modrinth(
+        &profile,
+        &resourcepack,
+        &new_version_details,
+    )
+    .await?;
+
+    Ok(())
+}
+
+// Command to update a Modrinth shaderpack in a profile
+#[tauri::command]
+pub async fn update_shaderpack_from_modrinth(
+    profile_id: Uuid,
+    shaderpack: ShaderPackInfo,
+    new_version_details: ModrinthVersion,
+) -> Result<(), CommandError> {
+    info!(
+        "Received command update_shaderpack_from_modrinth: profile={}, shaderpack={}, new_version_id={}",
+        profile_id,
+        shaderpack.filename,
+        new_version_details.id
+    );
+
+    let state = State::get().await?;
+    let profile = state.profile_manager.get_profile(profile_id).await?;
+
+    crate::utils::shaderpack_utils::update_shaderpack_from_modrinth(
+        &profile,
+        &shaderpack,
+        &new_version_details,
+    )
+    .await?;
+
+    Ok(())
+}
+
+// Command to get all datapacks in a profile
+#[tauri::command]
+pub async fn get_local_datapacks(
+    profile_id: Uuid,
+) -> Result<Vec<datapack_utils::DataPackInfo>, CommandError> {
+    log::info!(
+        "Executing get_local_datapacks command for profile {}",
+        profile_id
+    );
+
+    let state = State::get().await?;
+    let profile = state.profile_manager.get_profile(profile_id).await?;
+
+    // Use the utility function to get all datapacks
+    let datapacks = datapack_utils::get_datapacks_for_profile(&profile)
+        .await
+        .map_err(|e| CommandError::from(e))?;
+
+    Ok(datapacks)
+}
+
+// Command to update a Modrinth datapack in a profile
+#[tauri::command]
+pub async fn update_datapack_from_modrinth(
+    profile_id: Uuid,
+    datapack: DataPackInfo,
+    new_version_details: ModrinthVersion,
+) -> Result<(), CommandError> {
+    info!(
+        "Received command update_datapack_from_modrinth: profile={}, datapack={}, new_version_id={}",
+        profile_id,
+        datapack.filename,
+        new_version_details.id
+    );
+
+    let state = State::get().await?;
+    let profile = state.profile_manager.get_profile(profile_id).await?;
+
+    crate::utils::datapack_utils::update_datapack_from_modrinth(
+        &profile,
+        &datapack,
+        &new_version_details,
+    )
+    .await?;
+
+    Ok(())
+}
+
+/// Checks the installation status of content based on provided parameters.
+#[tauri::command]
+pub async fn is_content_installed(
+    params: CheckContentParams,
+) -> Result<ContentInstallStatus, CommandError> {
+    info!(
+        "Executing check_content_installed command for profile {:?}",
+        params
+    );
+    // Call the utility function and map the error
+    Ok(profile_utils::check_content_installed(params).await?)
+}

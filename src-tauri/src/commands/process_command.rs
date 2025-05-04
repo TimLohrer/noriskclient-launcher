@@ -1,6 +1,7 @@
 use crate::error::CommandError;
 use crate::state::state_manager::State;
 use crate::state::process_state::ProcessMetadata;
+use crate::state::discord_state::DiscordState;
 use tauri::Manager;
 use uuid::Uuid;
 
@@ -63,5 +64,12 @@ pub async fn open_log_window<R: tauri::Runtime>(
     .build()
     .map_err(|e| CommandError::from(crate::error::AppError::Other(e.to_string())))?;
 
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn set_discord_state(state_type: String, profile_name: Option<String>) -> Result<(), CommandError> {
+    let state = State::get().await?;
+    //TODO
     Ok(())
 }
