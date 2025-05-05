@@ -86,8 +86,7 @@
         width: 100%;
         height: 8.5%;
         z-index: 1000;
-        /* background-color: var(--background-contrast-color); */
-        background-color: #222126;
+        background-color: var(--background-contrast-color);
     }
 
     .content {
