@@ -9,9 +9,10 @@ use crate::state::norisk_versions_state::{default_norisk_versions_path, NoriskVe
 use crate::state::process_state::{default_processes_path, ProcessManager};
 use crate::state::profile_state::ProfileManager;
 use crate::state::skin_state::{default_skins_path, SkinManager};
-use log::error;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
+
+use super::teatime_config_state::TeaTimeConfigManager;
 
 // Global state that will be initialized once
 static LAUNCHER_STATE: OnceCell<Arc<State>> = OnceCell::const_new();
@@ -26,6 +27,7 @@ pub struct State {
     pub norisk_pack_manager: NoriskPackManager,
     pub norisk_version_manager: NoriskVersionManager,
     pub config_manager: ConfigManager,
+    pub teatime_config_manager: TeaTimeConfigManager,
     pub skin_manager: SkinManager,
     pub discord_manager: DiscordManager,
 }
@@ -37,6 +39,8 @@ impl State {
             .get_or_try_init(|| async {
                 let config_manager = ConfigManager::new().await?;
                 let config = config_manager.get_config().await;
+
+                let teatime_config_manager = TeaTimeConfigManager::new().await?;
 
                 Ok::<Arc<State>, AppError>(Arc::new(Self {
                     initialized: true,
@@ -54,6 +58,7 @@ impl State {
                     )
                     .await?,
                     config_manager,
+                    teatime_config_manager,
                     skin_manager: SkinManager::new(default_skins_path()).await?,
                     discord_manager: DiscordManager::new(config.enable_discord_presence).await?,
                 }))

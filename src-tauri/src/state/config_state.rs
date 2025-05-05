@@ -23,6 +23,8 @@ pub struct LauncherConfig {
     pub concurrent_downloads: usize,
     #[serde(default = "default_discord_presence")]
     pub enable_discord_presence: bool,
+    #[serde(default)]
+    pub check_beta_channel: bool,
 }
 
 fn default_config_version() -> u32 {
@@ -45,6 +47,7 @@ impl Default for LauncherConfig {
             auto_check_updates: true,
             concurrent_downloads: default_concurrent_downloads(),
             enable_discord_presence: default_discord_presence(),
+            check_beta_channel: true,
         }
     }
 }
@@ -150,6 +153,7 @@ impl ConfigManager {
                 && current.auto_check_updates == new_config.auto_check_updates
                 && current.concurrent_downloads == new_config.concurrent_downloads
                 && current.enable_discord_presence == new_config.enable_discord_presence
+                && current.check_beta_channel == new_config.check_beta_channel
             {
                 debug!("No config changes detected, skipping save");
                 false
@@ -190,6 +194,7 @@ impl ConfigManager {
                     auto_check_updates: new_config.auto_check_updates,
                     concurrent_downloads: new_config.concurrent_downloads,
                     enable_discord_presence: new_config.enable_discord_presence,
+                    check_beta_channel: new_config.check_beta_channel,
                 };
 
                 true

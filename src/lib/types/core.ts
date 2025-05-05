@@ -32,3 +32,9 @@ export interface LauncherConfig {
     enable_discord_presence: boolean;
     check_beta_channel: boolean;
 }
+
+export interface TeaTimeConfig {
+    version: number;
+    language: string;
+    theme: string;
+}

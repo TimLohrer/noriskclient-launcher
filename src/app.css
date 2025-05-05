@@ -31,7 +31,8 @@ img {
     pointer-events: none !important;
 }
 
-body {
+body,
+body.theme-light {
     background-color: var(--background-color);
     --primary-color: #00afe8;
     --secondary-color: #0383cd;
@@ -53,7 +54,7 @@ body {
     transition: background-color 0.2s;
 }
 
-body.dark-mode {
+body.theme-dark {
     --primary-color: #00afe8;
     --secondary-color: #1d66b3;
     --primary-color-text-shadow: #0d4754;

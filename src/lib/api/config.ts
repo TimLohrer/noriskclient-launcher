@@ -8,3 +8,7 @@ export function getConfig(): Promise<LauncherConfig> {
 export function setConfig(config: LauncherConfig): Promise<void> {
     return invoke("set_launcher_config", { config });
 }
+
+export function getLauncherVersion(): Promise<string> {
+    return invoke("get_launcher_version");
+}

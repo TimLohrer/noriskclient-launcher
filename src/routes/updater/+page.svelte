@@ -7,6 +7,7 @@
     import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 	import type { Update } from "@tauri-apps/plugin-updater";
     import Logo from "$lib/images/norisk_logo.png";
+  import { launcherConfig, loadConfig } from '$lib/utils/configUtils';
     const appWindow = getCurrentWebviewWindow()
 
 	$: lang = $translations;
@@ -120,6 +121,11 @@
     }
 
 	onMount(async () => {
+		await loadConfig();
+		if (!$launcherConfig?.auto_check_updates) {
+			ignore();
+		}
+
 		initializeUpadter();
 		setLanguage($language);
     });

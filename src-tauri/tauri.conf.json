@@ -11,6 +11,8 @@
   },
   "plugins": {
     "updater": {
+      "active": true,
+      "dialog": false,
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDNDMTlFMzIzNjYzOUVFNzAKUldSdzdqbG1JK01aUE45cVFzMEpkTWVVaSs4RWc2UU12SWdlbEJjTVVoMU1QMDVWM1dHdU1LTUcK",
       "endpoints": [
         "https://api.fullriskclient.de/api/v1/launcher/releases/{{target}}/{{version}}"
@@ -33,7 +35,7 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self' ipc: http://ipc.localhost; img-src 'self' asset: http://asset.localhost",
+      "csp": "default-src 'self' ipc: http://ipc.localhost; connect-src 'self' https://api.iconify.design https://*.modrinth.com https://sessionserver.mojang.com; img-src 'self' asset: http://asset.localhost https://*.modrinth.com https://cdn.modrinth.com https://blog.norisk.gg https://textures.minecraft.net https://crafatar.com data:;",
       "assetProtocol": {
         "enable": true,
         "scope": {
@@ -48,7 +50,13 @@
     "createUpdaterArtifacts": true,
     "category": "Utility",
     "copyright": "NoRisk, Tim Lohrer",
-    "targets": "all",
+    "targets": [
+      "app", 
+      "dmg", 
+      "deb", 
+      "appimage", 
+      "nsis"
+    ],
     "externalBin": [],
     "icon": [
       "icons/32x32.png",

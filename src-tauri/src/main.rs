@@ -14,74 +14,40 @@ mod state;
 mod utils;
 use crate::integrations::norisk_packs;
 use crate::integrations::norisk_versions;
-use log::{debug, error, info, warn};
-use rand::seq::SliceRandom;
+use log::{debug, error, info};
 use std::sync::Arc;
 use tauri::Listener;
 
-use crate::commands::process_command::{
-    get_full_log, get_process, get_processes, get_processes_by_profile, open_log_window,
-    set_discord_state, stop_process,
-};
-use commands::minecraft_auth_command::{
-    begin_login, get_accounts, get_active_account, remove_account, set_active_account,
-};
-use commands::minecraft_command::{
-    add_skin,
-    apply_skin_from_base64,
-    // Local skin database commands
-    get_all_skins,
-    get_fabric_loader_versions,
-    get_forge_versions,
-    get_minecraft_versions,
-    get_neoforge_versions,
-    get_quilt_loader_versions,
-    get_skin_by_id,
-    // Skin management commands
-    get_user_skin_data,
-    remove_skin,
-    reset_skin,
-    update_skin_properties,
-    upload_log_to_mclogs_command,
-    upload_skin,
-};
-use commands::profile_command::{
-    abort_profile_launch, add_modrinth_content_to_profile, add_modrinth_mod_to_profile,
-    copy_profile, create_profile, delete_custom_mod, delete_mod_from_profile, delete_profile,
-    export_profile, get_custom_mods, get_local_datapacks, get_local_resourcepacks,
-    get_local_shaderpacks, get_norisk_packs, get_norisk_packs_resolved, get_profile,
-    get_profile_directory_structure, get_standard_profiles, get_system_ram_mb, import_local_mods,
-    import_profile_from_file, is_content_installed, is_profile_launching, launch_profile,
-    list_profiles, open_profile_folder, refresh_norisk_packs, refresh_standard_versions,
-    search_profiles, set_custom_mod_enabled, set_norisk_mod_status, set_profile_mod_enabled,
-    update_datapack_from_modrinth, update_modrinth_mod_version, update_profile,
-    update_resourcepack_from_modrinth, update_shaderpack_from_modrinth,
-};
+
+// Import process commands
+use crate::commands::process_command::*;
+
+// Import mc auth commands
+use commands::minecraft_auth_command::*;
+
+// Import minecraft commands
+use commands::minecraft_command::*;
+
+// Import profile commands
+use commands::profile_command::*;
 
 // Use statements for registered commands only
-use commands::modrinth_commands::{
-    check_modrinth_updates, download_and_install_modrinth_modpack,
-    get_all_modrinth_versions_for_contexts, get_modrinth_mod_versions,
-    get_modrinth_project_details, search_modrinth_mods, search_modrinth_projects,
-}; // Remove or comment out if not needed
+use commands::modrinth_commands::*; // Remove or comment out if not needed
 
-use commands::file_command::{
-    delete_file, get_icons_for_archives, get_icons_for_norisk_mods, open_file_directory,
-    set_file_enabled,
-};
+use commands::file_command::*;
 
 // Import config commands
-use commands::config_commands::{get_launcher_config, set_launcher_config};
+use commands::config_commands::*;
 
 // Import path commands
-use commands::path_commands::{get_launcher_directory, resolve_image_path};
+use commands::path_commands::*;
 
 // Import cape commands
-use commands::cape_command::{
-    browse_capes, delete_cape, equip_cape, get_player_capes, unequip_cape, upload_cape,
-};
+use commands::cape_command::*;
 
 use commands::updater_commands::*;
+
+use commands::teatime_config_commands::*;
 
 use tauri::Manager;
 
@@ -143,6 +109,7 @@ async fn main() {
             check_nrc_online_status,
             open_updater,
             close_updater,
+            get_launcher_version,
             create_profile,
             get_profile,
             update_profile,
@@ -232,7 +199,9 @@ async fn main() {
             unequip_cape,
             refresh_norisk_packs,
             refresh_standard_versions,
-            is_content_installed
+            is_content_installed,
+            get_teatime_config,
+            set_teatime_config
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

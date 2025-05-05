@@ -2,7 +2,7 @@
     import { accounts, addAccount, removeAccount, selectAccount, selectedAccount } from '$lib/utils/accountUtils';
     import { translations } from '$lib/utils/translationUtils';
     import NoUserSkinHead from '$lib/images/no_user_skin_head.png';
-	import Modal from './../Modal.svelte';
+	import Modal from '../core/Modal.svelte';
 
     export let showAccountsModal = false;
 

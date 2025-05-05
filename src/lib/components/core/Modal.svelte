@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount } from "svelte";
+
     export let show: boolean = true;
     export let title: string = "";
     export let onClose: () => void = () => {};
@@ -8,13 +10,34 @@
             { transform: 'translateY(0)' },
             { transform: 'translateY(100vh)' }
         ], {
-            duration: 300,
+            duration: 150,
             easing: 'ease-out',
             fill: 'forwards'
         });
         show = false;
         onClose();
     }
+
+    onMount(() => {
+        setInterval(() => {
+            const openState = show;
+            setTimeout(() => {
+                if (!openState && show) {
+                    const modal = document.getElementById('modal');
+                    if (modal) {
+                        modal.animate([
+                            { transform: 'translateY(100vh)' },
+                            { transform: 'translateY(0)' }
+                        ], {
+                            duration: 150,
+                            easing: 'ease-out',
+                            fill: 'forwards'
+                        });
+                    }
+                }
+            }, 10)
+        }, 10)
+    })
 </script>
 
 <!-- svelte-ignore a11y_no_static_element_interactions -->

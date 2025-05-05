@@ -4,11 +4,14 @@
     import { onMount } from "svelte";
 
     export let page: string;
+    export let allowOverflow: boolean = false;
 
     closeTabDirection.subscribe((direction) => {
         if (!direction) return;
         const root = document.getElementById(`${page}-root`);
         if (root) {
+            const oldAllowOverflow = allowOverflow;
+            allowOverflow = false;
             root.animate(
                 [
                     { transform: 'translateX(0)' },
@@ -20,13 +23,17 @@
                     fill: 'forwards'
                 }
             );
+            setTimeout(() => {
+                allowOverflow = oldAllowOverflow;
+            }, 100);
         }
     });
 
     onMount(() => {
-        
         const root = document.getElementById(`${page}-root`);
         if (root) {
+            const oldAllowOverflow = allowOverflow;
+            allowOverflow = false;
             if (!$launcherStartCompleted) {
                 return root.animate(
                     [
@@ -51,11 +58,14 @@
                 }
             );
             resetCloseTabDirection();
+            setTimeout(() => {
+                allowOverflow = oldAllowOverflow;
+            }, 150);
         }
     });
 </script>
 
-<div class="active-sliding-page-root " id={`${page}-root`}>
+<div class="active-sliding-page-root" class:allow-overflow={allowOverflow} id={`${page}-root`}>
     <slot />
 </div>
 
@@ -66,6 +76,11 @@
         align-items: center;
         width: 100%;
         height: 100%;
+        overflow: hidden;
         transition-duration: 0.2s;
+    }
+
+    .active-sliding-page-root.allow-overflow {
+        overflow-y: scroll;
     }
 </style>

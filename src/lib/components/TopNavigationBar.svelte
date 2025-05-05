@@ -15,14 +15,14 @@
                 onClick: () => selectTab(TABS, 'settings')
             },
             {
-                slug: 'skins',
-                name: lang.navbar.skins,
-                onClick: () => selectTab(TABS, 'skins')
+                slug: 'servers',
+                name: lang.navbar.servers,
+                onClick: () => selectTab(TABS, 'servers')
             },
             {
-                slug: 'capes',
-                name: lang.navbar.capes,
-                onClick: () => selectTab(TABS, 'capes')
+                slug: 'cape',
+                name: lang.navbar.cape,
+                onClick: () => selectTab(TABS, 'cape')
             },
             {
                 slug: 'play',
@@ -83,7 +83,7 @@
     }
 
     .tab .name {
-        font-size: 50px;
+        font-size: 47.5px;
         cursor: pointer;
         padding: 0 25px;
     }
@@ -92,8 +92,13 @@
         color: var(--hover-color);
     }
     
-    .tab .name.quit:hover {
+    .tab .name.quit {
         color: var(--red-text);
+    }
+
+    .tab .name.quit:hover {
+        transform: scale(0.95);
+        transition-duration: 100ms;
     }
 
     .tab .name.active {

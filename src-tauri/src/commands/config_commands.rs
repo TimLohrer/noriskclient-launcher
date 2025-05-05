@@ -29,3 +29,10 @@ pub async fn set_launcher_config(config: LauncherConfig) -> Result<LauncherConfi
     // Return the updated config
     Ok(config)
 }
+
+#[command]
+pub fn get_launcher_version() -> String {
+    // Get the version from the Cargo.toml file
+    let version = env!("CARGO_PKG_VERSION");
+    version.to_string()
+}

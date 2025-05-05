@@ -8,3 +8,4 @@ pub mod path_commands;
 pub mod process_command;
 pub mod profile_command;
 pub mod updater_commands;
+pub mod teatime_config_commands;

@@ -10,10 +10,11 @@
     import { loadAccounts } from '$lib/utils/accountUtils';
     import Settings from '$lib/pages/Settings.svelte';
     import { listen } from '@tauri-apps/api/event';
-    import type { EventPayload } from '$lib/types/core';
+    import type { EventPayload, TeaTimeConfig } from '$lib/types/core';
     import { currentEvent } from '$lib/utils/eventUtils';
     import { loadConfig } from '$lib/utils/configUtils';
-    import Skins from '$lib/pages/Skins.svelte';
+  import { loadTeaTimeConfig, teatimeConfig } from '$lib/utils/teatimeConfigUtils';
+  import Profiles from '$lib/pages/Profiles.svelte';
 
     $: lang = $translations;
 
@@ -29,8 +30,21 @@
             console.error("Failed to initialize event listener:", error);
         }
     }
+
+    teatimeConfig.subscribe((config: TeaTimeConfig | null) => {
+        if (config !== null) {
+            setLanguage(config.language);
+            document.body.classList.forEach((className) => {
+                if (className.startsWith('theme-')) {
+                    document.body.classList.remove(className);
+                }
+            });
+            document.body.classList.add(`theme-${config.theme.toLowerCase()}`);
+        }
+    });
     
     onMount(() => {
+        loadTeaTimeConfig();
         setLanguage($language);
         loadConfig();
         loadAccounts();
@@ -58,10 +72,10 @@
         <div class="content">
             {#if $activeTab == 'play'}
                 <Play />
-            {:else if $activeTab == 'capes'}
+            {:else if $activeTab == 'profiles'}
+                <Profiles />
+            {:else if $activeTab == 'cape'}
                 <Capes />
-            {:else if $activeTab == 'skins'}
-                <Skins />
             {:else if $activeTab == 'settings'}
                 <Settings />
             {/if}
