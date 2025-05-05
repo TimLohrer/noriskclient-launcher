@@ -36,5 +36,8 @@
     "settings.theme.label": "launcher theme",
     "settings.theme.buttonLabelDark": "dark",
     "settings.theme.buttonLabelLight": "light",
-    "settings.version": "launcher version {{LAUNCHER_VERSION}} • config version {{CONFIG_VERSION}}"
+    "settings.version": "launcher version {{LAUNCHER_VERSION}} • config version {{CONFIG_VERSION}} • fullrisk config version {{FULLRISK_CONFIG_VERSION}}",
+    "profiles.profileItem.button.settings": "settings",
+    "profiles.profileItem.button.clone": "clone",
+    "profiles.profileItem.button.play": "play"
 }

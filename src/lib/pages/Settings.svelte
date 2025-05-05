@@ -6,7 +6,7 @@
     import { launcherConfig, launcherVersion } from '$lib/utils/configUtils';
     import { setConfig } from '$lib/api/config';
     import { teatimeConfig } from '$lib/utils/teatimeConfigUtils';
-  import { setTeaTimeConfig } from '$lib/api/teatimeConfig';
+    import { setTeaTimeConfig } from '$lib/api/teatimeConfig';
 
     $: lang = $translations;
 
@@ -56,7 +56,7 @@
             <Setting value={() => showAccountsModal = true} bind:label={lang.settings.accounts.label} bind:buttonLabel={lang.settings.accounts.buttonLabel} buttonColor={'var(--primary-color)'} />
             <Setting value={toggleTheme} bind:label={lang.settings.theme.label} buttonLabel={$teatimeConfig.theme.toLowerCase() === 'dark' ? lang.settings.theme.buttonLabelDark : lang.settings.theme.buttonLabelLight} buttonColor={'var(--primary-color)'} />
             <Setting bind:value={$launcherConfig.is_experimental} bind:label={lang.settings.experimentalMode.label} bind:description={lang.settings.experimentalMode.description} />
-            <p class="version">{lang.settings.version.replace('{{LAUNCHER_VERSION}}', $launcherVersion).replace('{{CONFIG_VERSION}}', $launcherConfig.version)}</p>
+            <p class="version">{lang.settings.version.replace('{{LAUNCHER_VERSION}}', $launcherVersion).replace('{{CONFIG_VERSION}}', $launcherConfig.version).replace('{{FULLRISK_CONFIG_VERSION}}', $teatimeConfig.version)}</p>
         {:else}
             <p>loading settings...</p>
         {/if}
