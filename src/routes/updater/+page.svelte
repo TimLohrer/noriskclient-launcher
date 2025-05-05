@@ -40,69 +40,67 @@
 		});
 	}
 
-    onMount(async () => {
-		setLanguage($language);
+	const initializeUpadter = () => translations.subscribe(async (translations) => {
+		if (!translations || !translations.dummy) return;
+		lang = translations;
+		
 		animateLoadingText();
+		try {
+			text = lang.updater.checking;
+			console.log(`Checking for updates...`);
 
-		// give 10ms time to load the language file
-		setTimeout(async () => {
-			try {
-				text = lang.updater.checking;
-				console.log(`Checking for updates...`);
-	
-				await check()
-					.then(_update => update = _update)
-					.catch(reason => {
-						console.error(reason);
-						error = reason.toString();
-						copyErrorButton = lang.updater.button.copyError;
-					});
-	
-				if (update != null) {
-					appWindow.show();
-					console.log(`Installing update: ${update.rawJson}`);
-					text = lang.updater.downloading;
-					await update.download(handleDownloadEvent).catch(reason => {
-						console.error(reason);
-						error = reason.toString();
-						copyErrorButton = lang.updater.button.copyError;
-					});
-					console.log(`Update downloaded!`);
-					text = lang.updater.installing;
-					await update.install().catch(reason => {
-						console.error(reason);
-						error = reason.toString();
-						copyErrorButton = lang.updater.button.copyError;
-					});
-					console.log(`Update was installed`);
-	
-					await relaunch().catch(reason => {
-						console.error(reason);
+			await check()
+				.then(_update => update = _update)
+				.catch(reason => {
+					console.error(reason);
+					error = reason.toString();
+					copyErrorButton = lang.updater.button.copyError;
+				});
+
+			if (update != null) {
+				appWindow.show();
+				console.log(`Installing update: ${update.rawJson}`);
+				text = lang.updater.downloading;
+				await update.download(handleDownloadEvent).catch(reason => {
+					console.error(reason);
+					error = reason.toString();
+					copyErrorButton = lang.updater.button.copyError;
+				});
+				console.log(`Update downloaded!`);
+				text = lang.updater.installing;
+				await update.install().catch(reason => {
+					console.error(reason);
+					error = reason.toString();
+					copyErrorButton = lang.updater.button.copyError;
+				});
+				console.log(`Update was installed`);
+
+				await relaunch().catch(reason => {
+					console.error(reason);
+					error = reason.toString();
+					copyErrorButton = lang.updater.button.copyError;
+				});
+			} else {
+				console.log(`No updates available`);
+				text = "";
+				if (error.trim() == "") {
+						await invoke("close_updater").then(() => {
+						console.log(`updater closed -> Main window shown`);
+					}).catch(reason => {
+						console.error(`Failed to close updater / show main window: ${reason}`);
 						error = reason.toString();
 						copyErrorButton = lang.updater.button.copyError;
 					});
 				} else {
-					console.log(`No updates available`);
-					text = "";
-					if (error.trim() == "") {
-							await invoke("close_updater").then(() => {
-							console.log(`updater closed -> Main window shown`);
-						}).catch(reason => {
-							console.error(`Failed to close updater / show main window: ${reason}`);
-							error = reason.toString();
-							copyErrorButton = lang.updater.button.copyError;
-						});
-					} else {
-						appWindow.show();
-					}
+					appWindow.show();
 				}
-			} catch (error) {
-				console.error(error);
-				error = lang.updater.error;
-				copyErrorButton = lang.updater.button.copyError;
 			}
-		}, 10)
-    });
+		} catch (error) {
+			console.error(error);
+			error = lang.updater.error;
+			copyErrorButton = lang.updater.button.copyError;
+		}
+	});
 
     function animateLoadingText() {
         return setInterval(function() {
@@ -120,6 +118,11 @@
             copyErrorButton = lang.updater.button.copyError;
         }, 1000);
     }
+
+	onMount(async () => {
+		initializeUpadter();
+		setLanguage($language);
+    });
 </script>
 
 <!-- svelte-ignore element_invalid_self_closing_tag -->
@@ -127,13 +130,13 @@
 <div class="container">
 	<div class="content">
 		<img src={Logo} alt="NoRiskClient Logo">
-		{#if error.trim() == ""}
+		{#if error.trim().length === 0 && text && text.trim().length > 0}
 			<p class="progress-text">{text}{text?.trim()?.length ?? 0 > 0 ? dots : ''}</p>
-		{:else}
+		{:else if error.trim().length > 0}
 			<p class="error-text">error! :(</p>
 		{/if}
 	</div>
-	{#if error.trim() != ""}
+	{#if error.trim().length > 0}
 		<!-- svelte-ignore a11y-click-events-have-key-events -->
 		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
 		<div class="error-button-container">
