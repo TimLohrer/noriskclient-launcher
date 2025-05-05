@@ -43,6 +43,7 @@
         align-items: center;
         z-index: 1000;
         opacity: 0;
+        overflow: hidden;
         pointer-events: none;
     }
     
