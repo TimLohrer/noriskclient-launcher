@@ -29,4 +29,6 @@ export interface LauncherConfig {
     is_experimental: boolean;
     auto_check_updates: boolean;
     concurrent_downloads: number;
+    enable_discord_presence: boolean;
+    check_beta_channel: boolean;
 }
