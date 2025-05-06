@@ -59,7 +59,7 @@
     .modal-overlay {
         position: absolute;
         width: 100vw;
-        height: 100vh;
+        height: 83%;
         backdrop-filter: blur(5px);
         display: flex;
         justify-content: center;
