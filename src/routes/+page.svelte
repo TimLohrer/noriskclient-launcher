@@ -42,13 +42,6 @@
             document.body.classList.add(`theme-${config.theme.toLowerCase()}`);
         }
     });
-
-    accounts.subscribe((accounts) => {
-        if (accounts === null) return;
-        if (accounts.length > 0) {
-            selectTab('play');
-        }
-    });
     
     onMount(() => {
         loadTeaTimeConfig();

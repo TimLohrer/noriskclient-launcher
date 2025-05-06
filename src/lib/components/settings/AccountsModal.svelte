@@ -20,12 +20,18 @@
         removeAccount(id);
     }
 
-    onMount(() => setInterval(function() {
-        dots += ".";
-        if (dots.length > 3) {
-            dots = "";
+    onMount(() => {
+        setInterval(function() {
+            dots += ".";
+            if (dots.length > 3) {
+                dots = "";
+            }
+        }, 500);
+
+        if ($selectedAccount === null) {
+            addAccount();
         }
-    }, 500));
+    });
 </script>
 
 <Modal bind:show={showAccountsModal} title={lang.settings.accounts.modal.title}>
