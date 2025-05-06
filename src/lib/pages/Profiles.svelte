@@ -101,7 +101,7 @@
         width: 325px;
         min-height: 200px;
         object-fit: cover;
-        mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.1) 65%, rgba(0,0,0,0) 100%);
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 40%, rgba(0,0,0,0.15) 65%);
         z-index: 1;
     }
 
