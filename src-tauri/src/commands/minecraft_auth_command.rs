@@ -49,6 +49,7 @@ pub async fn begin_login<R: Runtime>(
         )
         .title("Sign into Minecraft")
         .always_on_top(true)
+        .inner_size(450.0, 500.0)
         .center()
         .build()
         .map_err(|e| AppError::Other(e.to_string()))?;
