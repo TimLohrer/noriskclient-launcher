@@ -2,9 +2,12 @@ import { beginLogin, getAccounts, removeAccount as removeAccountInternal, setAct
 import type { MinecraftAccount } from "$lib/types/minecraft";
 import { get, writable, type Writable } from "svelte/store";
 import { translations } from "./translationUtils";
+import { selectTab } from "./navigationUtils";
 
 export const accounts: Writable<MinecraftAccount[] | null> = writable(null);
 export const selectedAccount: Writable<MinecraftAccount | null> = writable(null);
+
+export const DUMMY_ACCOUNT_ID = '00000000-0000-0000-0000-000000000000';
 
 export async function loadAccounts() {
     const loadedAccounts = await getAccounts();
@@ -17,7 +20,7 @@ export async function loadAccounts() {
 
 export async function addAccount(): Promise<void> {
     accounts.set([...get(accounts) ?? [], {
-        id: get(translations).settings.accounts.modal.dummy_account_id,
+        id: DUMMY_ACCOUNT_ID,
         username: get(translations).settings.accounts.modal.dummy_account_name,
         minecraft_username: get(translations).settings.accounts.modal.dummy_account_name,
         active: false,

@@ -1,12 +1,31 @@
-<script>
-    import { accounts, addAccount, removeAccount, selectAccount, selectedAccount } from '$lib/utils/accountUtils';
+<script lang="ts">
+    import { accounts, addAccount, DUMMY_ACCOUNT_ID, removeAccount, selectAccount, selectedAccount } from '$lib/utils/accountUtils';
     import { translations } from '$lib/utils/translationUtils';
     import NoUserSkinHead from '$lib/images/no_user_skin_head.png';
 	import Modal from '../core/Modal.svelte';
+    import { onMount } from 'svelte';
+    import { selectTab } from '$lib/utils/navigationUtils';
+  
+    $: lang = $translations;
 
     export let showAccountsModal = false;
 
-    $: lang = $translations;
+    let dots = '';
+
+    function remove(id: string) {
+        if ($accounts?.length == 1) {
+            showAccountsModal = false;
+            selectTab('play');
+        }
+        removeAccount(id);
+    }
+
+    onMount(() => setInterval(function() {
+        dots += ".";
+        if (dots.length > 3) {
+            dots = "";
+        }
+    }, 500));
 </script>
 
 <Modal bind:show={showAccountsModal} title={lang.settings.accounts.modal.title}>
@@ -19,11 +38,11 @@
             >
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div class="info" onclick={() => selectAccount(account.id)}>
-                    <img src={account.id == lang.settings.accounts.modal.dummy_account_id ? NoUserSkinHead : `https://crafatar.com/avatars/${account.id}`} alt="Account Avatar" class="avatar" />
-                    <p class="name" style={account.username.length > 12 ? 'font-size: 35px;' : 'font-size: 40px;'}>{account.username.toLowerCase()}</p>
+                    <img src={account.id == DUMMY_ACCOUNT_ID ? NoUserSkinHead : `https://crafatar.com/avatars/${account.id}`} alt="Account Avatar" class="avatar" />
+                    <p class="name" style={account.username.length > 12 ? 'font-size: 35px;' : 'font-size: 40px;'}>{account.username.toLowerCase()}{account.id == DUMMY_ACCOUNT_ID ? dots : ''}</p>
                 </div>
                 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-                <p class="close-btn" onclick={() => removeAccount(account.id)}>x</p>
+                <p class="close-btn" onclick={() => remove(account.id)}>x</p>
             </div>
         {/each}
     </div>

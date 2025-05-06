@@ -1,55 +1,53 @@
 <script lang="ts">
-    import { activeTab, selectTab } from "$lib/utils/navigationUtils";
+    import { activeTab, selectTab, tabs } from "$lib/utils/navigationUtils";
     import { translations } from "$lib/utils/translationUtils";
     import { onMount } from "svelte";
 
     $: lang = $translations;
 
-    let TABS: Record<string, any>[] = [];
-
     onMount(() => {
-        TABS = [
+        tabs.set([
             {
                 slug: 'settings',
                 name: lang.navbar.settings,
-                onClick: () => selectTab(TABS, 'settings')
+                onClick: () => selectTab('settings')
             },
             {
                 slug: 'servers',
                 name: lang.navbar.servers,
-                onClick: () => selectTab(TABS, 'servers')
+                onClick: () => selectTab('servers')
             },
             {
                 slug: 'cape',
                 name: lang.navbar.cape,
-                onClick: () => selectTab(TABS, 'cape')
+                onClick: () => selectTab('cape')
             },
             {
                 slug: 'play',
                 name: lang.navbar.play,
-                onClick: () => selectTab(TABS, 'play')
+                onClick: () => selectTab('play')
             },
             {
                 slug: 'profiles',
                 name: lang.navbar.profiles,
-                onClick: () => selectTab(TABS, 'profiles')
+                onClick: () => selectTab('profiles')
             },
             {
                 slug: 'addons',
                 name: lang.navbar.addons,
-                onClick: () => selectTab(TABS, 'addons')
+                onClick: () => selectTab('addons')
             },
             {
                 slug: 'quit',
                 name: lang.navbar.quit,
                 onClick: () => {}
             }
-        ];
+        ]);
     });
 </script>
 
 <div class="top-navbar-root" data-tauri-drag-region>
-    {#each TABS as tab, i}
+    {#each $tabs as tab, i}
         <div class="tab">
             <!-- svelte-ignore a11y_click_events_have_key_events -->
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -59,7 +57,7 @@
                 class:quit={tab.slug == 'quit'}
                 class:active={$activeTab == tab.slug}
             >{tab.name}</p>
-            {#if i != TABS.length - 1}
+            {#if i != $tabs.length - 1}
                 <p class="seperator">|</p>
             {/if}
         </div>

@@ -1,8 +1,11 @@
 <script lang="ts">
+	import CreateProfileModal from './../components/profiles/CreateProfileModal.svelte';
+	import ProfileSettingsModal from './../components/profiles/ProfileSettingsModal.svelte';
+	import CloneProfileModal from './../components/profiles/CloneProfileModal.svelte';
 	import VersionBackground from '$lib/images/versions/1.21.webp';
 	import type { Profile } from '$lib/types/profile';
 	import SlidingPageWrapper from '$lib/components/SlidingPageWrapper.svelte';
-    import { profiles } from '$lib/utils/profileUtils';
+    import { profiles, selectProfile } from '$lib/utils/profileUtils';
     import { onMount } from 'svelte';
     import VanillaIcon from '$lib/images/custom-servers/vanilla.png';
     import FabricIcon from '$lib/images/custom-servers/fabric.png';
@@ -12,10 +15,31 @@
     import NeoForgeIcon from '$lib/images/custom-servers/neoforge.png';
     import { teatimeConfig } from '$lib/utils/teatimeConfigUtils';
     import { translations } from '$lib/utils/translationUtils';
+    import { launchProfile } from '$lib/api/profiles';
+    import { selectTab } from '$lib/utils/navigationUtils';
+    import { currentEvent } from '$lib/utils/eventUtils';
 
     $: lang = $translations;
 
     let profileRows: Profile[][] = [];
+
+    let cloneModalProfile: Profile | null = null;
+    let settingsModalProfile: Profile | null = null;
+    let showCreateProfileModal = false;
+
+    async function play(profile: Profile) {
+        selectProfile(profile.id);
+        selectTab('play');
+        await launchProfile(profile.id);
+        currentEvent.set({
+            target_id: '1',
+            event_id: '1',
+            event_type: 'launching_minecraft',
+            message: lang.play.button.launching,
+            progress: 0,
+            error: '',
+        });
+    }
 
     onMount(async () => {
         for (let i = 0; i < $profiles.length / 3; i++) {
@@ -25,6 +49,9 @@
     });
 </script>
 
+<CloneProfileModal show={cloneModalProfile != null} onClose={() => cloneModalProfile = null} />
+<ProfileSettingsModal show={settingsModalProfile != null} onClose={() => settingsModalProfile = null} />
+<CreateProfileModal bind:show={showCreateProfileModal} />
 <SlidingPageWrapper page="profiles" allowOverflow>
     <div class="profile-list-root">
         {#each profileRows as profileRow, i}
@@ -47,13 +74,14 @@
                         {:else if profile.loader == 'neoforge'}
                             <img src={NeoForgeIcon} alt="NeoForge" class="loader-icon" />
                         {/if}
+                        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
                         <div class="hover-buttons-wrapper">
                             {#if profile.is_standard_version}
-                                <p class="hover-button blue-button">{lang.profiles.profileItem.button.clone}</p>
+                                <p class="hover-button blue-button" onclick={() => cloneModalProfile = profile}>{lang.profiles.profileItem.button.clone}</p>
                             {:else}
-                                <p class="hover-button blue-button">{lang.profiles.profileItem.button.settings}</p>
+                                <p class="hover-button blue-button" onclick={() => settingsModalProfile = profile}>{lang.profiles.profileItem.button.settings}</p>
                             {/if}
-                            <p class="hover-button green-button">{lang.profiles.profileItem.button.play}</p>
+                            <p class="hover-button green-button" onclick={() => play(profile)}>{lang.profiles.profileItem.button.play}</p>
                         </div>
                     </div>
                 {/each}

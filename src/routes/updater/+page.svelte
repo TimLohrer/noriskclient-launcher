@@ -7,7 +7,7 @@
     import { check, type DownloadEvent } from "@tauri-apps/plugin-updater";
 	import type { Update } from "@tauri-apps/plugin-updater";
     import Logo from "$lib/images/norisk_logo.png";
-  import { launcherConfig, loadConfig } from '$lib/utils/configUtils';
+  	import { launcherConfig, loadConfig } from '$lib/utils/configUtils';
     const appWindow = getCurrentWebviewWindow()
 
 	$: lang = $translations;

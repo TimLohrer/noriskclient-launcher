@@ -21,6 +21,7 @@
     let launchButtonVisible = $launcherStartCompleted;
 
     let startProgress: EventPayload | null = null;
+    let dots = '';
 
     function selectVersion() {
         launchButtonVisible = false;
@@ -88,6 +89,13 @@
         skinViewer.playerObject.position.set(0, -14, 0)
         document.getElementById('skin')?.appendChild(canvas);
 
+        setInterval(function() {
+            dots += ".";
+            if (dots.length > 3) {
+                dots = "";
+            }
+        }, 500)
+
         setTimeout(() => {
             launchButtonVisible = true;
         }, 350);
@@ -130,7 +138,7 @@
         <p
             class="launch-text"
             onclick={$selectedAccount == null ? login : launch}
-        >{$selectedAccount == null && startProgress == null ? lang.play.button.login : startProgress != null ? startProgress.message.toLowerCase() : lang.play.button.launch}</p>
+        >{$selectedAccount == null && startProgress == null ? lang.play.button.login : startProgress != null ? startProgress.message.toLowerCase() : lang.play.button.launch}{startProgress?.event_type == 'account_login' ? dots : ''}</p>
         {#if launchButtonHovered && startProgress == null && $profiles.length > 1 && $selectedAccount != null}
             <div class="spacer" />
             <div class="dropdown-arrow-wrapper">
@@ -238,7 +246,7 @@
         width: 100%;
         height: 65px;
         text-align: center;
-        color: var(--background-color);
+        color: white;
     }
 
     .play-button.play-button.is-start-progress .launch-text {
@@ -277,7 +285,7 @@
         font-size: 70px;
         margin-left: 12.5px;
         transform: rotateZ(90deg);
-        color: var(--background-color);
+        color: white;
     }
 
     .dropdown-arrow:hover {

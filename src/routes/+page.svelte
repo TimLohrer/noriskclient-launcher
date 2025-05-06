@@ -1,20 +1,20 @@
 <script lang="ts">
 	import Capes from './../lib/pages/Capes.svelte';
 	import Play from './../lib/pages/Play.svelte';
-    import { activeTab } from '$lib/utils/navigationUtils';
+    import { activeTab, selectTab } from '$lib/utils/navigationUtils';
     import { onMount } from 'svelte';
     import { language, setLanguage, translations } from '$lib/utils/translationUtils';
     import TopNavigationBar from '$lib/components/TopNavigationBar.svelte';
     import { launcherStartCompleted } from '$lib/utils/missilaniousUtils';
     import { loadProfiles } from '$lib/utils/profileUtils';
-    import { loadAccounts } from '$lib/utils/accountUtils';
+    import { accounts, loadAccounts } from '$lib/utils/accountUtils';
     import Settings from '$lib/pages/Settings.svelte';
     import { listen } from '@tauri-apps/api/event';
     import type { EventPayload, TeaTimeConfig } from '$lib/types/core';
     import { currentEvent } from '$lib/utils/eventUtils';
     import { loadConfig } from '$lib/utils/configUtils';
-  import { loadTeaTimeConfig, teatimeConfig } from '$lib/utils/teatimeConfigUtils';
-  import Profiles from '$lib/pages/Profiles.svelte';
+    import { loadTeaTimeConfig, teatimeConfig } from '$lib/utils/teatimeConfigUtils';
+    import Profiles from '$lib/pages/Profiles.svelte';
 
     $: lang = $translations;
 
@@ -40,6 +40,13 @@
                 }
             });
             document.body.classList.add(`theme-${config.theme.toLowerCase()}`);
+        }
+    });
+
+    accounts.subscribe((accounts) => {
+        if (accounts === null) return;
+        if (accounts.length > 0) {
+            selectTab('play');
         }
     });
     

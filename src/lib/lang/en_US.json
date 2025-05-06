@@ -16,11 +16,10 @@
     "play.button.launch": "launch",
     "play.button.launching": "launching...",
     "play.button.login": "login",
-    "play.button.logging_in": "logging in...",
+    "play.button.logging_in": "logging in",
     "settings.accounts.modal.title": "accounts",
     "settings.accounts.modal.button.add": "add account",
-    "settings.accounts.modal.dummy_account_id": "00000000-0000-0000-0000-000000000000",
-    "settings.accounts.modal.dummy_account_name": "logging in...",
+    "settings.accounts.modal.dummy_account_name": "logging in",
     "settings.autoCheckUpdates.label": "automatic updates",
     "settings.autoCheckUpdates.description": "automatically check for updates on startup",
     "settings.enableDiscordPresence.label": "discord presence",
@@ -39,5 +38,8 @@
     "settings.version": "launcher version {{LAUNCHER_VERSION}} • config version {{CONFIG_VERSION}} • fullrisk config version {{FULLRISK_CONFIG_VERSION}}",
     "profiles.profileItem.button.settings": "settings",
     "profiles.profileItem.button.clone": "clone",
-    "profiles.profileItem.button.play": "play"
+    "profiles.profileItem.button.play": "play",
+    "profiles.modal.cloneProfile.title": "clone profile",
+    "profiles.modal.profileSettings.title": "profile settings",
+    "profiles.modal.createProfile.title": "create profile"
 }
