@@ -18,8 +18,8 @@
     let profileRows: Profile[][] = [];
 
     onMount(async () => {
-        for (let i = 0; i < $profiles.length / 4; i++) {
-            profileRows.push($profiles.slice(i * 4, (i + 1) * 4));
+        for (let i = 0; i < $profiles.length / 3; i++) {
+            profileRows.push($profiles.slice(i * 3, (i + 1) * 3));
         }
         profileRows = profileRows;
     });
@@ -33,7 +33,7 @@
                 {#each profileRow as profile}
                     <!-- svelte-ignore a11y_click_events_have_key_events -->
                     <div class="profile-list-item">
-                        <div class="name" style={`font-size: ${profile.name.length > 10 ? 45 : 60}px`}>{profile.name.toLowerCase()}</div>
+                        <div class="name">{profile.name.toLowerCase()}</div>
                         <img src={VersionBackground} alt="Profile Background" class="background" />
                         <div class="version">{profile.game_version.toLowerCase()}</div>
                         {#if profile.loader == 'vanilla'}
@@ -79,7 +79,7 @@
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
-        margin-top: 50px;
+        margin-top: 90px;
         width: 100%;
         height: 150px;
     }
@@ -92,7 +92,6 @@
         width: 325px;
         height: 200px;
         border: 4px solid var(--primary-color);
-        cursor: pointer;
         overflow: hidden;
     }
 
@@ -102,17 +101,18 @@
         width: 325px;
         min-height: 200px;
         object-fit: cover;
-        mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.1) 55%, rgba(0,0,0,0) 100%);
+        mask-image: linear-gradient(to bottom, rgba(0,0,0,1) 0%, rgba(0,0,0,0.1) 65%, rgba(0,0,0,0) 100%);
         z-index: 1;
     }
 
     .profile-list-item:hover .background {
-        filter: blur(1px);
+        filter: blur(2px);
     }
 
     .profile-list-item:hover .hover-buttons-wrapper {
+        display: flex;
         opacity: 1;
-        transition: opacity 0.2s ease-in-out;
+        transform: translateY(0);
     }
 
     .profile-list-item .loader-icon {
@@ -122,38 +122,76 @@
         padding: 10px;
         margin-left: 270px;
         z-index: 2;
-        transition: opacity 0.75s ease-in-out, transform 0.2s ease-in-out;
     }
 
     .profile-list-item .name {
         color: var(--primary-color);
+        font-size: 45px;
         margin-left: 10px;
+        margin-bottom: -5px;
         z-index: 2;
     }
     
     .profile-list-item .version {
         font-size: 40px;
         padding: 0 0 10px 10px;
+        margin-bottom: -55px;
         color: var(--font-color);
         z-index: 2;
     }
 
-    .profile-list-item:hover .name, .profile-list-item:hover .version, .profile-list-item:hover .loader-icon {
-        transform: translateY(200%);
-        opacity: 0;
+    .profile-list-item:hover .name, .profile-list-item:hover .version {
+        transform: translateY(-120px);
     }
 
     .profile-list-item:hover .loader-icon {
-        transition: opacity 0.1s ease-in-out, transform 0.2s ease-in-out;
+        transform: translateY(-150px);
     }
 
     .profile-list-item .hover-buttons-wrapper {
-        display: none;
+        display: flex;
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
-        width: 100%;
-        opacity: 0;
-        transition: opacity 0.2s ease-in-out;
+        width: calc(100% - 20px);
+        padding: 0 10px 10px 10px;
+        transition: 0.2s ease-in-out;
+        transform: translateY(200%);
+    }
+
+    .profile-list-item .hover-button {
+        font-size: 30px;
+        color: var(--font-color);
+        padding: 3.5px 10px 6.5px 10px;
+        cursor: pointer;
+        width: 100px;
+        text-align: center;
+        transition: 0.2s ease-in-out;
+        background-color: rgba(255,255,255,0.05);
+        backdrop-filter: blur(5px);
+        border: 3px solid;
+    }
+
+    .profile-list-item .hover-button.blue-button {
+        border-color: var(--primary-color);
+        color: var(--primary-color);
+    }
+
+    .profile-list-item .hover-button.green-button {
+        border-color: var(--green-text);
+        color: var(--green-text);
+    }
+
+    .profile-list-item .hover-button:hover {
+        letter-spacing: 1.5px;
+        backdrop-filter: blur(10px);
+    }
+
+    .profile-list-item .hover-button.blue-button:hover {
+        background-color: rgba(0,150,190,0.2);
+    }
+
+    .profile-list-item .hover-button.green-button:hover {
+        background-color: rgba(0,200,0,0.2);
     }
 </style>
