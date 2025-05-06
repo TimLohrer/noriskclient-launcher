@@ -1,4 +1,5 @@
 <script lang="ts">
+	import Button from './../components/core/Button.svelte';
 	import CreateProfileModal from './../components/profiles/CreateProfileModal.svelte';
 	import ProfileSettingsModal from './../components/profiles/ProfileSettingsModal.svelte';
 	import CloneProfileModal from './../components/profiles/CloneProfileModal.svelte';
@@ -21,7 +22,13 @@
 
     $: lang = $translations;
 
-    let profileRows: Profile[][] = [];
+    $: profileRows = (() => {
+        let rows: Profile[][] = [];
+        for (let i = 0; i < $profiles.length / 3; i++) {
+            rows.push($profiles.slice(i * 3, (i + 1) * 3));
+        }
+        return rows;
+    })();
 
     let cloneModalProfile: Profile | null = null;
     let settingsModalProfile: Profile | null = null;
@@ -40,57 +47,75 @@
             error: '',
         });
     }
-
-    onMount(async () => {
-        for (let i = 0; i < $profiles.length / 3; i++) {
-            profileRows.push($profiles.slice(i * 3, (i + 1) * 3));
-        }
-        profileRows = profileRows;
-    });
 </script>
 
-<CloneProfileModal show={cloneModalProfile != null} onClose={() => cloneModalProfile = null} />
+<CloneProfileModal show={cloneModalProfile != null} profile={cloneModalProfile} onClose={() => cloneModalProfile = null} />
 <ProfileSettingsModal show={settingsModalProfile != null} onClose={() => settingsModalProfile = null} />
 <CreateProfileModal bind:show={showCreateProfileModal} />
 <SlidingPageWrapper page="profiles" allowOverflow>
-    <div class="profile-list-root">
-        {#each profileRows as profileRow, i}
-            <div class="profile-list-row" style={i == profileRows.length - 1 ? "margin-bottom: 20px" : ""}>
-                <!-- svelte-ignore a11y_no_static_element_interactions -->
-                {#each profileRow as profile}
-                    <!-- svelte-ignore a11y_click_events_have_key_events -->
-                    <div class="profile-list-item">
-                        <div class="name">{profile.name.toLowerCase()}</div>
-                        <img src={VersionBackground} alt="Profile Background" class="background" />
-                        <div class="version">{profile.game_version.toLowerCase()}</div>
-                        {#if profile.loader == 'vanilla'}
-                            <img src={VanillaIcon} alt="Vanilla" class="loader-icon" />
-                        {:else if profile.loader == 'fabric'}
-                            <img src={FabricIcon} alt="Fabric" class="loader-icon" />
-                        {:else if profile.loader == 'forge'}
-                            <img src={$teatimeConfig!.theme.toLowerCase() == 'dark' ? ForgeIconLight : ForgeIconDark} alt="Forge" class="loader-icon" />
-                        {:else if profile.loader == 'quilt'}
-                            <img src={QuiltIcon} alt="Quilt" class="loader-icon" />
-                        {:else if profile.loader == 'neoforge'}
-                            <img src={NeoForgeIcon} alt="NeoForge" class="loader-icon" />
-                        {/if}
-                        <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-                        <div class="hover-buttons-wrapper">
-                            {#if profile.is_standard_version}
-                                <p class="hover-button blue-button" onclick={() => cloneModalProfile = profile}>{lang.profiles.profileItem.button.clone}</p>
-                            {:else}
-                                <p class="hover-button blue-button" onclick={() => settingsModalProfile = profile}>{lang.profiles.profileItem.button.settings}</p>
+    <div class="profiles-wrapper">
+        <div class="header">
+            <Button onClick={() => showCreateProfileModal = true} style='default' width='170px' height='35px'>{lang.profiles.button.create}</Button>
+        </div>
+        <div class="profile-list-root">
+            {#each profileRows as profileRow, i}
+                <div class="profile-list-row" style={i == profileRows.length - 1 ? "margin-bottom: 20px" : ""}>
+                    <!-- svelte-ignore a11y_no_static_element_interactions -->
+                    {#each profileRow as profile}
+                        <!-- svelte-ignore a11y_click_events_have_key_events -->
+                        <div class="profile-list-item">
+                            <div class="name">{profile.name.length > 17 ? profile.name.toLowerCase().substring(0,17) + '...' : profile.name.toLowerCase()}</div>
+                            <img src={VersionBackground} alt="Profile Background" class="background" />
+                            <div class="version">{profile.game_version.toLowerCase()}</div>
+                            {#if profile.loader == 'vanilla'}
+                                <img src={VanillaIcon} alt="Vanilla" class="loader-icon" />
+                            {:else if profile.loader == 'fabric'}
+                                <img src={FabricIcon} alt="Fabric" class="loader-icon" />
+                            {:else if profile.loader == 'forge'}
+                                <img src={$teatimeConfig!.theme.toLowerCase() == 'dark' ? ForgeIconLight : ForgeIconDark} alt="Forge" class="loader-icon" />
+                            {:else if profile.loader == 'quilt'}
+                                <img src={QuiltIcon} alt="Quilt" class="loader-icon" />
+                            {:else if profile.loader == 'neoforge'}
+                                <img src={NeoForgeIcon} alt="NeoForge" class="loader-icon" />
                             {/if}
-                            <p class="hover-button green-button" onclick={() => play(profile)}>{lang.profiles.profileItem.button.play}</p>
+                            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+                            <div class="hover-buttons-wrapper">
+                                {#if profile.is_standard_version}
+                                    <Button onClick={() => cloneModalProfile = profile} style='default'>{lang.profiles.profileItem.button.clone}</Button>
+                                {:else}
+                                    <Button onClick={() => settingsModalProfile = profile} style='default'>{lang.profiles.profileItem.button.settings}</Button>
+                                {/if}
+                                <Button onClick={() => play(profile)} style='green'>{lang.profiles.profileItem.button.play}</Button>
+                            </div>
                         </div>
-                    </div>
-                {/each}
-            </div>
-        {/each}
+                    {/each}
+                </div>
+            {/each}
+        </div>
+        <div class="spacer"></div>
     </div>
 </SlidingPageWrapper>
 
 <style>
+    .profiles-wrapper {
+        display: flex;
+        flex-direction: column;
+        justify-content: start;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    .header {
+        display: flex;
+        flex-direction: row;
+        justify-content: right;
+        align-items: center;
+        width: 90%;
+        padding: 20px;
+        margin-bottom: 30px;
+    }
+
     .profile-list-root {
         display: flex;
         flex-direction: column;
@@ -98,8 +123,10 @@
         align-items: start;
         width: 90%;
         height: 100%;
-        overflow-y: scroll;
-        overflow-x: hidden;
+    }
+
+    .spacer {
+        height: 500px;
     }
 
     .profile-list-row {
@@ -107,7 +134,7 @@
         flex-direction: row;
         justify-content: space-between;
         align-items: center;
-        margin-top: 90px;
+        margin-bottom: 90px;
         width: 100%;
         height: 150px;
     }
@@ -121,6 +148,10 @@
         height: 200px;
         border: 4px solid var(--primary-color);
         overflow: hidden;
+    }
+
+    .profile-list-item {
+        transition-duration: 150ms;
     }
 
     .profile-list-item .background {
@@ -184,43 +215,6 @@
         align-items: center;
         width: calc(100% - 20px);
         padding: 0 10px 10px 10px;
-        transition: 0.2s ease-in-out;
         transform: translateY(200%);
-    }
-
-    .profile-list-item .hover-button {
-        font-size: 30px;
-        color: var(--font-color);
-        padding: 3.5px 10px 6.5px 10px;
-        cursor: pointer;
-        width: 100px;
-        text-align: center;
-        transition: 0.2s ease-in-out;
-        background-color: rgba(255,255,255,0.05);
-        backdrop-filter: blur(5px);
-        border: 3px solid;
-    }
-
-    .profile-list-item .hover-button.blue-button {
-        border-color: var(--primary-color);
-        color: var(--primary-color);
-    }
-
-    .profile-list-item .hover-button.green-button {
-        border-color: var(--green-text);
-        color: var(--green-text);
-    }
-
-    .profile-list-item .hover-button:hover {
-        letter-spacing: 1.5px;
-        backdrop-filter: blur(10px);
-    }
-
-    .profile-list-item .hover-button.blue-button:hover {
-        background-color: rgba(0,150,190,0.2);
-    }
-
-    .profile-list-item .hover-button.green-button:hover {
-        background-color: rgba(0,200,0,0.2);
     }
 </style>

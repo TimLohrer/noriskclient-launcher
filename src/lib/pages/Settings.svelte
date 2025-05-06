@@ -52,9 +52,9 @@
             <Setting bind:value={$launcherConfig.auto_check_updates} bind:label={lang.settings.autoCheckUpdates.label} bind:description={lang.settings.autoCheckUpdates.description} />
             <Setting bind:value={$launcherConfig.enable_discord_presence} bind:label={lang.settings.enableDiscordPresence.label} bind:description={lang.settings.enableDiscordPresence.description} />
             <Setting bind:value={$launcherConfig.check_beta_channel} bind:label={lang.settings.checkBetaChannel.label} bind:description={lang.settings.checkBetaChannel.description} />
-            <Setting bind:value={$launcherConfig.concurrent_downloads} min={1} max={10} bind:label={lang.settings.concurrentDownloads.label} bind:description={lang.settings.concurrentDownloads.description} />
-            <Setting value={() => showAccountsModal = true} bind:label={lang.settings.accounts.label} bind:buttonLabel={lang.settings.accounts.buttonLabel} buttonColor={'var(--primary-color)'} />
-            <Setting value={toggleTheme} bind:label={lang.settings.theme.label} buttonLabel={$teatimeConfig.theme.toLowerCase() === 'dark' ? lang.settings.theme.buttonLabelDark : lang.settings.theme.buttonLabelLight} buttonColor={'var(--primary-color)'} />
+            <Setting bind:value={$launcherConfig.concurrent_downloads} placeholder="5" min={1} max={10} manageInput={true} bind:label={lang.settings.concurrentDownloads.label} bind:description={lang.settings.concurrentDownloads.description} />
+            <Setting value={() => showAccountsModal = true} bind:label={lang.settings.accounts.label} bind:buttonLabel={lang.settings.accounts.buttonLabel} />
+            <Setting value={toggleTheme} bind:label={lang.settings.theme.label} buttonLabel={$teatimeConfig.theme.toLowerCase() === 'dark' ? lang.settings.theme.buttonLabelDark : lang.settings.theme.buttonLabelLight} />
             <Setting bind:value={$launcherConfig.is_experimental} bind:label={lang.settings.experimentalMode.label} bind:description={lang.settings.experimentalMode.description} />
             <p class="version">{lang.settings.version.replace('{{LAUNCHER_VERSION}}', $launcherVersion).replace('{{CONFIG_VERSION}}', $launcherConfig.version).replace('{{FULLRISK_CONFIG_VERSION}}', $teatimeConfig.version)}</p>
         {:else}

@@ -1,7 +1,6 @@
 <script lang="ts">
 	import VersionList from './../components/play/VersionList.svelte';
     import SlidingPageWrapper from '$lib/components/SlidingPageWrapper.svelte';
-    import VersionBackground from '$lib/images/versions/1.21.webp';
     import { launcherStartCompleted } from '$lib/utils/missilaniousUtils';
     import { translations } from '$lib/utils/translationUtils';
     import { IdleAnimation, SkinViewer } from "skinview3d";
@@ -13,6 +12,7 @@
     import { launchProfile } from '$lib/api/profiles';
     import type { EventPayload } from '$lib/types/core';
     import { currentEvent } from '$lib/utils/eventUtils';
+    import { cdnAsset, handleLocalFallbackAsset } from '$lib/utils/cdnUtils';
 
     $: lang = $translations;
 
@@ -106,7 +106,7 @@
     <!-- svelte-ignore element_invalid_self_closing_tag -->
     <div class="image-outline" />
     <!-- svelte-ignore a11y_img_redundant_alt -->
-    <img class="image" class:dark={!launchButtonVisible && $launcherStartCompleted} src={VersionBackground} alt="Background Image">
+    <img class="image" class:dark={!launchButtonVisible && $launcherStartCompleted} src={cdnAsset(`/versions/${$selectedProfile?.game_version.split('.')[0]}.${$selectedProfile?.game_version.split('.')[1]}.webp`)} onerror={async (e) => handleLocalFallbackAsset(e, `/images/versions/${$selectedProfile?.game_version.split('.')[0]}.${$selectedProfile?.game_version.split('.')[1]}.webp`)} alt="Background Image">
     <div class="version-selector-container">
         {#if !launchButtonVisible && $launcherStartCompleted}
             <VersionList bind:isClosed={launchButtonVisible} />
@@ -154,6 +154,7 @@
     .image {
         image-rendering: optimizeSpeed;
         width: calc(100% - 2 * 35px);
+        min-height: calc(100% - 2 * 35px);
         max-height: calc(100% - 2 * 35px);
         object-fit: cover;
         mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1), rgba(0, 0, 0, 0.4));

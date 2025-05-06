@@ -1,9 +1,15 @@
 <script lang="ts">
     export let value: number;
+    export let placeholder: string = '';
+    export let label: string = '';
     export let min: number = Number.MIN_SAFE_INTEGER;
     export let max: number = Number.MAX_SAFE_INTEGER;
+    export let width: string = '30px';
+    export let height: string = '37.5px';
+    export let manageInput: boolean = false;
 
     function onChange(event: Event) {
+        if (!manageInput) return;
         const input = event.target as HTMLInputElement;
         const newValue = parseInt(input.value, 10);
         if (newValue >= min && newValue <= max) {
@@ -14,12 +20,36 @@
     }
 </script>
 
-<input type="number" value={value} min={min} max={max} class="number-input" placeholder="5" onchange={onChange} />
+<div class="number-input-wrapper">
+    <p class="label">{label}</p>
+    <input
+        type="number"
+        class="number-input"
+        style={`width: ${width}; height: ${height};`}
+        value={value}
+        min={min}
+        max={max}
+        placeholder={placeholder}
+        onchange={onChange}
+    />
+</div>
 
 <style>
+    .number-input-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: start;
+        gap: 5px;
+    }
+
+    .number-input-wrapper .label {
+        font-size: 40px;
+        font-weight: 600;
+        letter-spacing: 1px;
+        color: var(--color-text);
+    }
+
     .number-input {
-        width: 30px;
-        height: 37.5px;
         background-color: var(--color-background);
         color: var(--text-color);
         font-size: 30px;
@@ -43,9 +73,5 @@
     input[type=number]::-webkit-outer-spin-button { 
         -webkit-appearance: none; 
         margin: 0; 
-    }
-
-    input[type=number] {
-        -moz-appearance: textfield;
     }
 </style>

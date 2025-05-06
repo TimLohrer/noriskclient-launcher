@@ -1,0 +1,2 @@
+export const cdnAsset = (path: string): string => `https://cdn.timlohrer.de/fullriskclient${path}`;
+export const handleLocalFallbackAsset = async (ev: any, path: string) => ev.target.src = await import(`$lib${path}`);

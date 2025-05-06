@@ -1,12 +1,15 @@
 <script lang="ts">
-	import NumberInput from './../core/inputs/NumberInput.svelte';
+	import TextInput from './../core/inputs/TextInput.svelte';
+	import NumberInput from '../core/inputs/NumberInput.svelte';
 	import Checkbox from './../core/inputs/Checkbox.svelte';
 	import Button from './../core/Button.svelte';
+    
     export let value: any;
+    export let placeholder: string = '';
     export let min: number = Number.MIN_SAFE_INTEGER;
     export let max: number = Number.MAX_SAFE_INTEGER;
-    export let buttonColor: string = 'var(--primary-color)';
     export let buttonLabel: string = '';
+    export let manageInput: boolean = false;
     export let label: string;
     export let description: string = '';
 </script>
@@ -21,11 +24,11 @@
     {#if typeof value == 'boolean'}
         <Checkbox bind:value />
     {:else if typeof value == 'string'}
-        <input type="text" bind:value={value} class="text-input" placeholder={label} />
+        <TextInput bind:value bind:minLength={min} bind:maxLength={max} bind:placeholder bind:manageInput />
     {:else if typeof value == 'number'}
-        <NumberInput bind:value bind:min bind:max />
+        <NumberInput bind:value bind:min bind:max bind:placeholder bind:manageInput />
     {:else if typeof value == 'function'}
-        <Button onClick={value} label={buttonLabel} color={buttonColor}/>
+        <Button onClick={value} style='default'>{buttonLabel}</Button>
     {/if}
 </div>
 

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+    import { hexToRGB } from "$lib/utils/colorUtils";
+    import { onMount } from "svelte";
 
     export let show: boolean = true;
     export let title: string = "";
@@ -43,7 +44,12 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="modal-overlay" class:visible={show} onclick={closeModal}>
-    <div class="modal" id="modal" onclick={(e) => e.stopPropagation()}>
+    <div
+        class="modal"
+        id="modal"
+        style={`background-color: rgba(${hexToRGB('var(--background-color)').join(',')},0.9);`}
+        onclick={(e) => e.stopPropagation()}
+    >
         <div class="header">
             <h1 class="title">{title.toLowerCase()}</h1>
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
@@ -76,13 +82,11 @@
     }
 
     .modal {
-        background-color: var(--background-color);
         padding: 10px;
         min-width: 30%;
         max-width: 80%;
-        outline: 4px solid var(--background-contrast-color);
+        border: 4px solid var(--background-contrast-color);
         animation: slide-in 0.3s ease-out forwards;
-        border-radius: 1px;
     }
 
     .modal .header {
@@ -108,7 +112,6 @@
     }
 
     .modal .content {
-        padding: 5px 10px 10px 10px;
         display: flex;
         flex-direction: column;
         align-items: center;

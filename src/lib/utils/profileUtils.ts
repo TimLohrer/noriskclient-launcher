@@ -1,5 +1,5 @@
 import { getNoriskProfiles } from "$lib/api/noriskVersions";
-import { getProfiles } from "$lib/api/profiles";
+import { copyProfile, getProfiles } from "$lib/api/profiles";
 import type { Profile } from "$lib/types/profile";
 import { get, writable, type Writable } from "svelte/store";
 
@@ -34,5 +34,16 @@ export function selectProfile(profileId: string | null): void {
         selectedProfile.set(selected || null);
     } else {
         selectedProfile.set(null);
+    }
+}
+
+export async function cloneProfile(profileId: string, newProfileName: string): Promise<boolean> {
+    try {
+        await copyProfile({ source_profile_id: profileId, new_profile_name: newProfileName, include_files: undefined });
+        await loadProfiles();
+        return true;
+    } catch (error) {
+        console.error("Failed to clone profile:", error);
+        return false;
     }
 }

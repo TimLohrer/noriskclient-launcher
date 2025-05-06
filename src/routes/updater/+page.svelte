@@ -26,6 +26,7 @@
 			updateDownloadSize = event.data.contentLength ?? 0;
 		} else if (event.event === 'Progress') {
 			updateDownloadProgress = event.data.chunkLength;
+			text = lang.updater.downloading.replace('{{PROGRESS}}', `${updateDownloadProgress} / ${updateDownloadSize}`);
 		} else if (event.event === 'Finished') {
 			console.log('Download finished!');
 			updateDownloadProgress = 0;
@@ -61,7 +62,7 @@
 			if (update != null) {
 				appWindow.show();
 				console.log(`Installing update: ${update.rawJson}`);
-				text = lang.updater.downloading;
+				text = lang.updater.downloading.replace('{{PROGRESS}}', '0');
 				await update.download(handleDownloadEvent).catch(reason => {
 					console.error(reason);
 					error = reason.toString();

@@ -92,7 +92,6 @@
         justify-content: space-between;
         width: 1200px;
         height: 800px;
-        background-color: var(--background-color);
         overflow: hidden;
     }
 

@@ -39,7 +39,22 @@
     "profiles.profileItem.button.settings": "settings",
     "profiles.profileItem.button.clone": "clone",
     "profiles.profileItem.button.play": "play",
+    "profiles.button.create": "create profile",
     "profiles.modal.cloneProfile.title": "clone profile",
+    "profiles.modal.cloneProfile.input.profileName.label": "profile name",
+    "profiles.modal.cloneProfile.button.clone": "clone",
+    "profiles.modal.cloneProfile.button.cancel": "cancel",
     "profiles.modal.profileSettings.title": "profile settings",
-    "profiles.modal.createProfile.title": "create profile"
+    "profiles.modal.createProfile.title": "create profile",
+    "profiles.modal.createProfile.step.general": "general",
+    "profiles.modal.createProfile.step.version": "version",
+    "profiles.modal.createProfile.step.loader": "mod loader",
+    "profiles.modal.createProfile.step.advanced": "advanced",
+    "profiles.modal.createProfile.step.finished": "finished",
+    "profiles.modal.createProfile.button.back": "back",
+    "profiles.modal.createProfile.button.next": "next",
+    "profiles.modal.createProfile.button.create": "create",
+    "profiles.modal.createProfile.input.name.label": "profile name",
+    "profiles.modal.createProfile.input.description.label": "profile description",
+    "profiles.modal.createProfile.input.group.label": "group name"
 }
