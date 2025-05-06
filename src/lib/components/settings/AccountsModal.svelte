@@ -44,7 +44,7 @@
             >
                 <!-- svelte-ignore a11y_no_static_element_interactions -->
                 <div class="info" onclick={() => selectAccount(account.id)}>
-                    <img src={account.id == DUMMY_ACCOUNT_ID ? NoUserSkinHead : `https://crafatar.com/avatars/${account.id}`} alt="Account Avatar" class="avatar" />
+                    <img src={account.id == DUMMY_ACCOUNT_ID ? NoUserSkinHead : `https://crafatar.com/avatars/${account.id}?overlay`} alt="Account Avatar" class="avatar" />
                     <p class="name" style={account.username.length > 12 ? 'font-size: 35px;' : 'font-size: 40px;'}>{account.username.toLowerCase()}{account.id == DUMMY_ACCOUNT_ID ? dots : ''}</p>
                 </div>
                 <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
