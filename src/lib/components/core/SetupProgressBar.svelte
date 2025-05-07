@@ -54,8 +54,8 @@
     .step-line.current {
         background: linear-gradient(
             to right,
-            var(--primary-color) 5%,
-            var(--font-color) 50%
+            var(--primary-color) 2%,
+            var(--font-color) 5%
         );
     }
 
@@ -76,6 +76,6 @@
     }
 
     .step-name.active {
-        color: var(--font-color);
+        color: var(--primary-color);
     }
 </style>
