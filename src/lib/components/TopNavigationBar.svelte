@@ -6,6 +6,8 @@
 
     $: lang = $translations;
 
+    let lastTextClick = 0;
+
     onMount(() => {
         tabs.set([
             {
@@ -61,14 +63,19 @@
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
             <p
                 class="name"
-                onclick={tab.requiresAccount && $selectedAccount === null ? null : tab.onClick}
+                onmousedown={() => lastTextClick = Date.now()}
+                onmouseup={() => {
+                    if ((!tab.requiresAccount || $selectedAccount !== null) && Date.now() - lastTextClick < 200) {
+                        tab.onClick();
+                    }
+                }}
                 class:quit={tab.slug == 'quit'}
                 class:disabled={tab.requiresAccount && $selectedAccount === null}
                 class:active={$activeTab == tab.slug}
                 data-tauri-drag-region
             >{tab.name}</p>
             {#if i != $tabs.length - 1}
-                <p class="seperator">|</p>
+                <p class="seperator" data-tauri-drag-region>|</p>
             {/if}
         </div>
     {/each}
