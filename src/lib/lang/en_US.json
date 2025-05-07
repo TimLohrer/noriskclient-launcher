@@ -49,12 +49,14 @@
     "profiles.modal.createProfile.step.general": "general",
     "profiles.modal.createProfile.step.version": "version",
     "profiles.modal.createProfile.step.loader": "mod loader",
+    "profiles.modal.createProfile.step.loaderVersion": "loader version",
     "profiles.modal.createProfile.step.advanced": "advanced",
     "profiles.modal.createProfile.step.finished": "finished",
     "profiles.modal.createProfile.button.back": "back",
     "profiles.modal.createProfile.button.next": "next",
+    "profiles.modal.createProfile.button.skip": "skip",
     "profiles.modal.createProfile.button.create": "create",
     "profiles.modal.createProfile.input.name.label": "profile name",
     "profiles.modal.createProfile.input.description.label": "profile description",
-    "profiles.modal.createProfile.input.group.label": "group name"
+    "profiles.modal.createProfile.input.group.label": "group (e.g. modpacks)"
 }

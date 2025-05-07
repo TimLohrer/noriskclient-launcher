@@ -1,13 +1,14 @@
 <script lang="ts">
     export let step: number;
     export let steps: string[];
+    export let inactive: string[] = [];
     export let lineWidth: string = '75px';
 </script>
 
 <div class="setup-progress-bar">
     {#each steps as stepName, index}
-        <div class="step-dot" class:active={index <= step}>
-            <p class="step-name" class:active={index === step}>{stepName}</p>
+        <div class="step-dot" class:active={index <= step} class:inactive={inactive.includes(stepName)}>
+            <p class="step-name" class:active={index === step} class:inactive={inactive.includes(stepName)}>{stepName}</p>
         </div>
         {#if index < steps.length - 1}
             <!-- svelte-ignore element_invalid_self_closing_tag -->
@@ -36,6 +37,11 @@
         background-color: var(--font-color);
     }
 
+    .step-dot.inactive {
+        width: 11.5px;
+        height: 11.5px;
+    }
+
     .step-dot.active {
         background-color: var(--primary-color);
     }
@@ -62,6 +68,11 @@
         font-size: 25px;
         margin-top: -27.5px;
         color: var(--font-color);
+    }
+
+    .step-name.inactive {
+        margin-top: -30px;
+        opacity: 0.5;
     }
 
     .step-name.active {

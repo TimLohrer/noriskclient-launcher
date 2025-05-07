@@ -16,7 +16,7 @@
         name: '',
         description: '',
         game_version: '',
-        loader: 'forge',
+        loader: 'vanilla',
         loader_version: '',
         group: '',
         created: '',
@@ -50,11 +50,18 @@
         }
     };
 
+    interface Step {
+        name: string;
+        skippable: boolean;
+        isComlete: () => boolean;
+        isActive?: () => boolean;
+    }
+
     let newProfile: Profile = EMPTY_PROFILE;
 
-    let STEPS: string[] = [];
-    let step = 0;
+    let STEPS: Step[] = [];
 
+    let step = 0;
 
     function close() {
         show = false;
@@ -68,47 +75,95 @@
 
     onMount(() => {
         STEPS = [
-            lang.profiles.modal.createProfile.step.general,
-            lang.profiles.modal.createProfile.step.version,
-            lang.profiles.modal.createProfile.step.loader,
-            lang.profiles.modal.createProfile.step.advanced,
-            lang.profiles.modal.createProfile.step.finished
-        ];
+            {
+                name: lang.profiles.modal.createProfile.step.general,
+                skippable: false,
+                isComlete: () => newProfile.name.length >= 3
+            },
+            {
+                name: lang.profiles.modal.createProfile.step.version,
+                skippable: false,
+                isComlete: () => newProfile.game_version !== ''
+            },
+            {
+                name: lang.profiles.modal.createProfile.step.loader,
+                skippable: false,
+                isComlete: () => true
+            },
+            {
+                name: lang.profiles.modal.createProfile.step.loaderVersion,
+                skippable: true,
+                isComlete: () => true,
+                isActive: () => newProfile.loader !== 'vanilla'
+            },
+            {
+                name: lang.profiles.modal.createProfile.step.advanced,
+                skippable: true,
+                isComlete: () => newProfile.settings != EMPTY_PROFILE.settings
+            },
+            {
+                name: lang.profiles.modal.createProfile.step.finished,
+                skippable: false,
+                isComlete: () => true
+            }
+        ];        
     });
 </script>
 
 <Modal title={lang.profiles.modal.createProfile.title} bind:show onClose={close}>
-    <div class="create-profile-modal-content-wrapper">
-        <SetupProgressBar bind:step steps={STEPS} lineWidth='100px' />
-        <div class="step-wrapper">
-            {#if step === 0}
-                <div class="general-wrapper">
-                    <TextInput bind:value={newProfile.name} label={lang.profiles.modal.createProfile.input.name.label} width='99%' />
-                    <TextInput bind:value={newProfile.description!} label={lang.profiles.modal.createProfile.input.description.label} width='99%' />
-                    <TextInput bind:value={newProfile.group!} label={lang.profiles.modal.createProfile.input.group.label} width='99%' />
-                </div>
-            {:else if step === 1}
-            {:else if step === 2}
-            {:else if step === 3}
-            {:else if step === 4}
-            {/if}
+    {#if STEPS}
+        <div class="create-profile-modal-content-wrapper">
+            <SetupProgressBar bind:step steps={STEPS.map(s => s.name)} inactive={STEPS.filter(s => s.isActive !== undefined && !s.isActive()).map(s => s.name)} lineWidth='120px' />
+            <div class="step-wrapper">
+                {#if step === 0}
+                    <div class="general-wrapper">
+                        <TextInput bind:value={newProfile.name} label={lang.profiles.modal.createProfile.input.name.label} width='98%' />
+                        <TextInput bind:value={newProfile.description!} label={lang.profiles.modal.createProfile.input.description.label} width='98%' height='125px' multiline />
+                        <TextInput bind:value={newProfile.group!} label={lang.profiles.modal.createProfile.input.group.label} width='98%' />
+                    </div>
+                {:else if step === 1}
+                {:else if step === 2}
+                {:else if step === 3}
+                {:else if step === 4}
+                {/if}
+            </div>
+            <div class="button-wrapper">
+                <Button onClick={STEPS[step - 1]?.isActive !== undefined && !STEPS[step - 1].isActive!() ? () => step -= 2 : () => step--} disabled={step == 0} style='red' height='30px' width='80px'>{lang.profiles.modal.createProfile.button.back}</Button>
+                {#if step < STEPS.length - 1}
+                    {#if STEPS[step].skippable && !STEPS[step].isComlete()}
+                        <Button
+                            onClick={() => step++}
+                            style='default'
+                            height='30px'
+                            width='80px'
+                        >{lang.profiles.modal.createProfile.button.skip}</Button>
+                    {:else}
+                        <Button
+                            onClick={STEPS[step + 1].isActive !== undefined && !STEPS[step + 1].isActive!() ? () => step += 2 : () => step++}
+                            disabled={!STEPS[step].isComlete()}
+                            style='default' 
+                            height='30px' 
+                            width='80px'
+                        >{lang.profiles.modal.createProfile.button.next}</Button>
+                    {/if}
+                {:else}
+                    <Button
+                        onClick={() => create()}
+                        style='green'
+                        height='30px'
+                        width='80px'
+                    >{lang.profiles.modal.createProfile.button.create}</Button>
+                {/if}
+            </div>
         </div>
-        <div class="button-wrapper">
-            <Button onClick={() => step--} style='red' height='30px' width='80px'>{lang.profiles.modal.createProfile.button.back}</Button>
-            {#if step < STEPS.length - 1}
-                <Button onClick={() => step++} style='default' height='30px' width='80px'>{lang.profiles.modal.createProfile.button.next}</Button>
-            {:else}
-                <Button onClick={() => create()} style='green' height='30px' width='80px'>{lang.profiles.modal.createProfile.button.finish}</Button>
-            {/if}
-        </div>
-    </div>
+    {/if}
 </Modal>
 
 <style>
     .create-profile-modal-content-wrapper {
         display: flex;
         flex-direction: column;
-        width: 700px;
+        width: 750px;
         height: 500px;
     }
 
@@ -116,15 +171,14 @@
         display: flex;
         flex-direction: column;
         height: 100%;
-        padding: 0 20px;
+        padding: 0 15px 15px 15px;
+        margin-top: 20px;
         overflow-y: auto;
     }
 
     .general-wrapper {
         display: flex;
         flex-direction: column;
-        width: 100%;
-        height: 100%;
         justify-content: start;
         align-items: center;
         gap: 15px;
@@ -136,6 +190,6 @@
         justify-content: space-between;
         align-items: center;
         margin-top: auto;
-        padding: 0 20px 20px 20px;
+        padding: 0 20px 10px 20px;
     }
 </style>
