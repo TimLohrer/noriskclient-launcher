@@ -51,7 +51,7 @@
         align-items: start;
         justify-content: center;
         gap: 15px;
-        width: 100%;
+        width: 430px;
         height: 100%;
     }
 
