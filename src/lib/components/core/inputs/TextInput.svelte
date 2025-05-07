@@ -3,7 +3,8 @@
     export let label: string = '';
     export let minLength: number = 0;
     export let maxLength: number = Number.MAX_SAFE_INTEGER;
-    export let width: string = 'auto';
+    export let multiline: boolean = false;
+    export let width: string = '100%';
     export let height: string = '37.5px';
     export let manageInput: boolean = false;
 
@@ -21,16 +22,27 @@
 
 <div class="text-input-wrapper" style={`width: ${width};`}>
     <p class="label">{label}</p>
-    <!-- svelte-ignore a11y_autofocus -->
-    <input
-        type="text"
-        class="text-input"
-        style={`width: ${width}; height: ${height};`}
-        bind:value={value}
-        minlength={minLength}
-        maxlength={maxLength}
-        onchange={onChange}
-    />
+    {#if multiline}
+        <!-- svelte-ignore element_invalid_self_closing_tag -->
+        <textarea
+            class="text-input"
+            style={`height: ${height}; min-height: ${height};`}
+            bind:value={value}
+            minlength={minLength}
+            maxlength={maxLength}
+            onchange={onChange}
+        />
+    {:else}
+        <input
+            type="text"
+            class="text-input"
+            style={`height: ${height};`}
+            bind:value={value}
+            minlength={minLength}
+            maxlength={maxLength}
+            onchange={onChange}
+        />
+    {/if}
 </div>
 
 <style>
@@ -38,6 +50,7 @@
         display: flex;
         flex-direction: column;
         align-items: start;
+        width: 100%;
         gap: 5px;
     }
 
@@ -53,6 +66,8 @@
         font-size: 30px;
         padding-left: 10px;
         padding-bottom: 2.5px;
+        min-width: calc(100% - 15px);
+        max-width: calc(100% - 15px);
         border: 3px solid var(--font-color);
         outline: none;
         transition-duration: 100ms;

@@ -28,7 +28,6 @@
         <TextInput
             bind:value={profileName}
             bind:label={lang.profiles.modal.cloneProfile.input.profileName.label}
-            width='98%'
         />
         <div class="button-wrapper">
             <Button
@@ -58,8 +57,7 @@
     .button-wrapper {
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 10px;
+        justify-content: space-between;
         width: 100%;
     }
 </style>
