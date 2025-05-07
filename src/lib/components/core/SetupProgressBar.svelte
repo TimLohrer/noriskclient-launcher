@@ -38,8 +38,7 @@
     }
 
     .step-dot.inactive {
-        width: 11.5px;
-        height: 11.5px;
+        height: 10px;
     }
 
     .step-dot.active {

@@ -59,12 +59,10 @@ export interface WindowSize {
 
 export interface ProfileSettings {
   java_path: string | null;       // Option<String> -> string | null
-  use_custom_java_path: boolean; // Added boolean flag
   memory: MemorySettings;
   resolution: WindowSize | null;
   fullscreen: boolean;
-  extra_game_args: string[];           // Vec<String> -> string[] (Renamed from extra_args)
-  custom_jvm_args: string | null;   // Option<String> -> string | null (New)
+  extra_args: string[];           // Vec<String> -> string[] (Renamed from extra_args)
 }
 
 interface ModSourceBase {

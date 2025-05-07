@@ -4,6 +4,7 @@
 
     export let onClick: () => void;
     export let disabled: boolean = false;
+    export let active: boolean = false;
     export let style: 'default' | 'green' | 'red' | 'custom' = 'default';
     export let color: string = style == 'default' ? 'var(--primary-color)' : style === 'green' ? 'var(--green-text)' : style === 'red' ? 'var(--red-text)' : '';
     export let width: string = '80px';
@@ -15,8 +16,9 @@
 <div
     class="button"
     onclick={onClick}
-    style="border: 3px solid {color}; color: {color}; width: {width}; height: {height}; background-color: rgba({($teatimeConfig?.theme.toLowerCase() == 'dark' ? [0,0,0] : [255,255,255]).join(',')}, 0.05);"
+    style="border: 3px solid {color}; color: {color}; width: {width}; height: {height}; background-color: {active ? `rgba(${hexToRGB(color).join(',')}, 0.2)` : `rgba(${($teatimeConfig?.theme.toLowerCase() == 'dark' ? [0,0,0] : [255,255,255]).join(',')}, 0.05)`};"
     class:disabled={disabled}
+    class:active={active}
     onmouseenter={(e) => (e.currentTarget.style.backgroundColor = `rgba(${hexToRGB(color).join(',')}, 0.2)`)}
     onmouseleave={(e) => (e.currentTarget.style.backgroundColor = `rgba(${($teatimeConfig?.theme.toLowerCase() == 'dark' ? [0,0,0] : [255,255,255]).join(',')}, 0.05)`)}
 >
@@ -39,7 +41,8 @@
         opacity: 0.25;
     }
 
-    .button:hover {
+    .button:hover, .button.active {
         backdrop-filter: blur(10px);
+        letter-spacing: 1px;
     }
 </style>

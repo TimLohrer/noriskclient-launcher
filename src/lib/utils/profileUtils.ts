@@ -1,10 +1,32 @@
 import { getNoriskProfiles } from "$lib/api/noriskVersions";
-import { copyProfile, getProfiles } from "$lib/api/profiles";
-import type { Profile } from "$lib/types/profile";
+import { copyProfile, getProfiles, createProfile as _createProfile, updateProfile } from "$lib/api/profiles";
+import type { CreateProfileParams, Profile } from "$lib/types/profile";
 import { get, writable, type Writable } from "svelte/store";
 
 export const profiles: Writable<Profile[]> = writable([]);
 export const selectedProfile: Writable<Profile | null> = writable(null);
+
+export async function createProfile(profile: Profile): Promise<void> {
+    try {
+        const newProfileId = await _createProfile({
+            name: profile.name,
+            game_version: profile.game_version,
+            loader: profile.loader,
+            loader_version: profile.loader_version ?? undefined,
+            selected_norisk_pack_id: profile.selected_norisk_pack_id ?? undefined,
+        });
+        
+        await updateProfile(newProfileId, {
+            group: profile.group ?? undefined,
+            description: profile.description ?? undefined,
+            settings: profile.settings
+        })
+
+        await loadProfiles();
+    } catch (error) {
+        console.error("Failed to create profile:", error);
+    }
+}
 
 export async function loadProfiles(): Promise<void> {
     try {

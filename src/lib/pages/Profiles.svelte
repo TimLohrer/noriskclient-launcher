@@ -7,18 +7,18 @@
 	import type { Profile } from '$lib/types/profile';
 	import SlidingPageWrapper from '$lib/components/SlidingPageWrapper.svelte';
     import { profiles, selectProfile } from '$lib/utils/profileUtils';
-    import { onMount } from 'svelte';
-    import VanillaIcon from '$lib/images/custom-servers/vanilla.png';
-    import FabricIcon from '$lib/images/custom-servers/fabric.png';
-    import ForgeIconLight from '$lib/images/custom-servers/forge_white.png';
-    import ForgeIconDark from '$lib/images/custom-servers/forge_dark.png';
-    import QuiltIcon from '$lib/images/custom-servers/quilt.png';
-    import NeoForgeIcon from '$lib/images/custom-servers/neoforge.png';
+    import VanillaIcon from '$lib/images/loaders/vanilla.png';
+    import FabricIcon from '$lib/images/loaders/fabric.png';
+    import ForgeIconLight from '$lib/images/loaders/forge_white.png';
+    import ForgeIconDark from '$lib/images/loaders/forge_dark.png';
+    import QuiltIcon from '$lib/images/loaders/quilt.png';
+    import NeoForgeIcon from '$lib/images/loaders/neoforge.png';
     import { teatimeConfig } from '$lib/utils/teatimeConfigUtils';
     import { translations } from '$lib/utils/translationUtils';
     import { launchProfile } from '$lib/api/profiles';
     import { selectTab } from '$lib/utils/navigationUtils';
     import { currentEvent } from '$lib/utils/eventUtils';
+    import { clearLoaderVersions } from '$lib/utils/loaderUtils';
 
     $: lang = $translations;
 
@@ -55,7 +55,7 @@
 <SlidingPageWrapper page="profiles" allowOverflow>
     <div class="profiles-wrapper">
         <div class="header">
-            <Button onClick={() => showCreateProfileModal = true} style='default' width='170px' height='35px'>{lang.profiles.button.create}</Button>
+            <Button onClick={() => {showCreateProfileModal = true; clearLoaderVersions();}} style='default' width='170px' height='35px'>{lang.profiles.button.create}</Button>
         </div>
         <div class="profile-list-root">
             {#each profileRows as profileRow, i}
@@ -132,7 +132,8 @@
     .profile-list-row {
         display: flex;
         flex-direction: row;
-        justify-content: space-between;
+        justify-content: start;
+        gap: 40px;
         align-items: center;
         margin-bottom: 90px;
         width: 100%;

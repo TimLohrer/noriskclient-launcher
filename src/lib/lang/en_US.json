@@ -58,5 +58,12 @@
     "profiles.modal.createProfile.button.create": "create",
     "profiles.modal.createProfile.input.name.label": "profile name",
     "profiles.modal.createProfile.input.description.label": "profile description",
-    "profiles.modal.createProfile.input.group.label": "group (e.g. modpacks)"
+    "profiles.modal.createProfile.input.group.label": "group (e.g. modpacks)",
+    "profiles.modal.createProfile.input.searchVersions.placeholder": "search versions",
+    "profiles.modal.createProfile.button.snapshots": "snapshots",
+    "profiles.modal.createProfile.button.releases": "releases",
+    "profiles.modal.createProfile.loadingLoaderVersions": "loading available loaders...",
+    "profiles.modal.createProfile.input.searchLoaderVersions.placeholder": "search loader versions",
+    "profiles.modal.createProfile.advanced.inputs.fullscreen.label": "fullscreen",
+    "profiles.modal.createProfile.creatingProfile": "creating profile..."
 }

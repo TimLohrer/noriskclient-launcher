@@ -15,6 +15,8 @@
     import { loadConfig } from '$lib/utils/configUtils';
     import { loadTeaTimeConfig, teatimeConfig } from '$lib/utils/teatimeConfigUtils';
     import Profiles from '$lib/pages/Profiles.svelte';
+  import { loadVanillaVersions } from '$lib/utils/loaderUtils';
+  import { loadSystemMemory } from '$lib/utils/systemUtils';
 
     $: lang = $translations;
 
@@ -45,10 +47,11 @@
     
     onMount(() => {
         loadTeaTimeConfig();
-        setLanguage($language);
         loadConfig();
         loadAccounts();
         loadProfiles();
+        loadVanillaVersions();
+        loadSystemMemory();
 
         setTimeout(() => {
             launcherStartCompleted.set(true);

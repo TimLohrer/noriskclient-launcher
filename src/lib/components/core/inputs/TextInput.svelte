@@ -1,6 +1,7 @@
 <script lang="ts">
     export let value: string;
     export let label: string = '';
+    export let placeholder: string = '';
     export let minLength: number = 0;
     export let maxLength: number = Number.MAX_SAFE_INTEGER;
     export let required: boolean = false;
@@ -22,13 +23,16 @@
 </script>
 
 <div class="text-input-wrapper" style={`width: ${width};`}>
-    <p class="label">{label}<span class="required" class:hidden={!required}>*</span></p>
+    {#if label.length > 0}
+        <p class="label">{label}<span class="required" class:hidden={!required}>*</span></p>
+    {/if}
     {#if multiline}
         <!-- svelte-ignore element_invalid_self_closing_tag -->
         <textarea
             class="text-input"
             style={`height: ${height}; min-height: ${height};`}
             bind:value={value}
+            placeholder={placeholder}
             minlength={minLength}
             maxlength={maxLength}
             onchange={onChange}
@@ -38,6 +42,7 @@
             type="text"
             class="text-input"
             style={`height: ${height};`}
+            placeholder={placeholder}
             bind:value={value}
             minlength={minLength}
             maxlength={maxLength}
@@ -88,5 +93,10 @@
     .text-input:focus {
         border-color: var(--primary-color);
         color: var(--primary-color);
+    }
+
+    .text-input::placeholder {
+        color: var(--font-color);
+        opacity: 0.5;
     }
 </style>
