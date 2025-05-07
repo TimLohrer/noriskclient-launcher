@@ -3,6 +3,7 @@
     export let label: string = '';
     export let minLength: number = 0;
     export let maxLength: number = Number.MAX_SAFE_INTEGER;
+    export let required: boolean = false;
     export let multiline: boolean = false;
     export let width: string = '100%';
     export let height: string = '37.5px';
@@ -21,7 +22,7 @@
 </script>
 
 <div class="text-input-wrapper" style={`width: ${width};`}>
-    <p class="label">{label}</p>
+    <p class="label">{label}<span class="required" class:hidden={!required}>*</span></p>
     {#if multiline}
         <!-- svelte-ignore element_invalid_self_closing_tag -->
         <textarea
@@ -58,6 +59,17 @@
         font-size: 27.5px;
         font-weight: 600;
         color: var(--color-text);
+    }
+
+    .text-input-wrapper .label .required {
+        color: var(--red-text);
+        font-size: 27.5px;
+        margin-left: 5px;
+        font-weight: 600;
+    }
+
+    .text-input-wrapper .label .required.hidden {
+        display: none;
     }
 
     .text-input {

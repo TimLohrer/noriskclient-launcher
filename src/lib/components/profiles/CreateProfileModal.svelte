@@ -78,7 +78,7 @@
             {
                 name: lang.profiles.modal.createProfile.step.general,
                 skippable: false,
-                isComlete: () => newProfile.name.length >= 3
+                isComlete: () => newProfile.name.length > 0 && newProfile.name.length <= 40,
             },
             {
                 name: lang.profiles.modal.createProfile.step.version,
@@ -117,7 +117,7 @@
             <div class="step-wrapper">
                 {#if step === 0}
                     <div class="general-wrapper">
-                        <TextInput bind:value={newProfile.name} label={lang.profiles.modal.createProfile.input.name.label} width='98%' />
+                        <TextInput bind:value={newProfile.name} label={lang.profiles.modal.createProfile.input.name.label} width='98%' required />
                         <TextInput bind:value={newProfile.description!} label={lang.profiles.modal.createProfile.input.description.label} width='98%' height='125px' multiline />
                         <TextInput bind:value={newProfile.group!} label={lang.profiles.modal.createProfile.input.group.label} width='98%' />
                     </div>

@@ -28,6 +28,7 @@
         <TextInput
             bind:value={profileName}
             bind:label={lang.profiles.modal.cloneProfile.input.profileName.label}
+            required
         />
         <div class="button-wrapper">
             <Button
@@ -36,7 +37,7 @@
             >{lang.profiles.modal.cloneProfile.button.cancel}</Button>
             <Button
                 onClick={clone}
-                disabled={profileName.length < 3 || profileName.length > 40}
+                disabled={profileName.length <= 0 || profileName.length > 40}
                 style='green'
             >{lang.profiles.modal.cloneProfile.button.clone}</Button>
         </div>
