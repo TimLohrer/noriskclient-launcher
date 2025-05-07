@@ -61,10 +61,11 @@
             <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
             <p
                 class="name"
-                on:click={tab.requiresAccount && $selectedAccount === null ? null : tab.onClick}
+                onclick={tab.requiresAccount && $selectedAccount === null ? null : tab.onClick}
                 class:quit={tab.slug == 'quit'}
                 class:disabled={tab.requiresAccount && $selectedAccount === null}
                 class:active={$activeTab == tab.slug}
+                data-tauri-drag-region
             >{tab.name}</p>
             {#if i != $tabs.length - 1}
                 <p class="seperator">|</p>
