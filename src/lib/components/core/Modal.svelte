@@ -26,6 +26,7 @@
                 if (!openState && show) {
                     const modal = document.getElementById('modal');
                     if (modal) {
+                        modal.style = `background-color: rgba(${hexToRGB('var(--background-color)').join(',')},0.9);`;
                         modal.animate([
                             { transform: 'translateY(100vh)' },
                             { transform: 'translateY(0)' }
