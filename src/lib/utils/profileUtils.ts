@@ -17,8 +17,8 @@ export async function createProfile(profile: Profile): Promise<void> {
         });
         
         await updateProfile(newProfileId, {
-            group: profile.group ?? undefined,
-            description: profile.description ?? undefined,
+            group: profile.group!,
+            description: profile.description!,
             settings: profile.settings
         })
 
