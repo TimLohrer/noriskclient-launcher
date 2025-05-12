@@ -65,5 +65,9 @@
     "profiles.modal.createProfile.loadingLoaderVersions": "loading available loaders...",
     "profiles.modal.createProfile.input.searchLoaderVersions.placeholder": "search loader versions",
     "profiles.modal.createProfile.advanced.inputs.fullscreen.label": "fullscreen",
-    "profiles.modal.createProfile.creatingProfile": "creating profile..."
+    "profiles.modal.createProfile.creatingProfile": "creating profile...",
+    "profiles.modal.profileSettings.sidebar.general": "general",
+    "profiles.modal.profileSettings.sidebar.installation": "installation",
+    "profiles.modal.profileSettings.sidebar.addons": "addons",
+    "profiles.modal.profileSettings.sidebar.advanced": "advanced"
 }
